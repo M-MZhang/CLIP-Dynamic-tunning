@@ -52,6 +52,8 @@ import re
 import numpy as np
 import os.path as osp
 import argparse
+import openpyxl
+import os
 from collections import OrderedDict, defaultdict
 
 from dassl.utils import check_isfile, listdir_nohidden
@@ -120,7 +122,7 @@ def parse_function(*metrics, directory="", args=None, end_signal=None):
         output_results[key] = avg
     print("===")
 
-    return output_results
+    return output_results, std
 
 
 def main(args, end_signal):
@@ -134,7 +136,7 @@ def main(args, end_signal):
 
         for directory in listdir_nohidden(args.directory, sort=True):
             directory = osp.join(args.directory, directory)
-            results = parse_function(
+            results, stds = parse_function(
                 metric, directory=directory, args=args, end_signal=end_signal
             )
 
@@ -147,14 +149,15 @@ def main(args, end_signal):
             print(f"* {key}: {avg:.2f}%")
 
     else:
-        parse_function(
+        results, stds = parse_function(
             metric, directory=args.directory, args=args, end_signal=end_signal
         )
+        return results, stds
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("directory", type=str, help="path to directory")
+    parser.add_argument("directory", type=str, default=None, help="path to directory")
     parser.add_argument(
         "--ci95", action="store_true", help=r"compute 95\% confidence interval"
     )
@@ -167,8 +170,46 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    end_signal = "Finished training"
-    if args.test_log:
-        end_signal = "=> result"
 
-    main(args, end_signal)
+    # 需要写入excel表中
+    save_dir = "/root/data1/zmm/output"
+    save_file_name = save_dir + "/results.xlsx"
+    colums_names = ["caltech101", "oxford_pets", "stanford_cars", "oxford_flowers", "food101", "fgvc_aircraft", "sun397", "dtd", "eurosat", "ucf101"]
+
+    if not os.path.exists(save_file_name):
+        wb = openpyxl.Workbook(save_file_name)
+        sheet = wb.create_sheet('MaPLe-base2new') # 根据trainer不同需要替换
+        sheet.append(colums_names)
+        wb.save(save_file_name)
+    
+    train_average_list = []
+    test_average_list = []
+    for dataset in colums_names:
+        end_signal = "Finish training"
+    
+        train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/MaPLe/vit_b16_c2_ep5_batch4_2ctx"
+        args.directory = train_dictionary
+        results, stds = main(args, end_signal)
+        train_average_list.append(str(round(results['accuracy'],2)) + " % +- " + str(round(stds,2)) + " %")
+
+        
+        test_dictionary = "/root/data1/zmm/output/base2new/test_new/" + dataset + "/shots_16/MaPLe/vit_b16_c2_ep5_batch4_2ctx"
+        args.directory = test_dictionary
+        # args.test_log:
+        end_signal = "=> result"
+        results, stds = main(args, end_signal)
+        test_average_list.append(str(round(results['accuracy'],2)) + " % +-" + str(round(stds,2)) + " %")
+    
+
+    wb = openpyxl.load_workbook(save_file_name)
+    # if "MaPLe" in wb.sheetnames:
+    #     sheet = wb['MaPLe']
+    # else:
+    #     sheet = wb.create_sheet('MaPLe')
+    #     sheet = wb['MaPLe']
+    #     sheet.append(colums_names)
+    sheet = wb['MaPLe-base2new']
+    sheet.append(train_average_list)
+    sheet.append(test_average_list)
+    sheet.append([])
+    wb.save(filename=save_file_name)
