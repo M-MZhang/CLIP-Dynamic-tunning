@@ -176,9 +176,11 @@ if __name__ == "__main__":
     save_file_name = save_dir + "/results.xlsx"
     colums_names = ["caltech101", "oxford_pets", "stanford_cars", "oxford_flowers", "food101", "fgvc_aircraft", "sun397", "dtd", "eurosat", "ucf101"]
 
+    # colums_names = ["ucf101"]
+
     if not os.path.exists(save_file_name):
         wb = openpyxl.Workbook(save_file_name)
-        sheet = wb.create_sheet('MaPLe-base2new') # 根据trainer不同需要替换
+        sheet = wb.create_sheet('ReMaPLe-base2new') # 根据trainer不同需要替换
         sheet.append(colums_names)
         wb.save(save_file_name)
     
@@ -187,13 +189,13 @@ if __name__ == "__main__":
     for dataset in colums_names:
         end_signal = "Finish training"
     
-        train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/MaPLe/vit_b16_c2_ep5_batch4_2ctx"
+        train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/ReMaPLe/vit_b16_c2_ep5_batch4_2ctx"
         args.directory = train_dictionary
         results, stds = main(args, end_signal)
         train_average_list.append(str(round(results['accuracy'],2)) + " % +- " + str(round(stds,2)) + " %")
 
         
-        test_dictionary = "/root/data1/zmm/output/base2new/test_new/" + dataset + "/shots_16/MaPLe/vit_b16_c2_ep5_batch4_2ctx"
+        test_dictionary = "/root/data1/zmm/output/base2new/test_new/" + dataset + "/shots_16/ReMaPLe/vit_b16_c2_ep5_batch4_2ctx"
         args.directory = test_dictionary
         # args.test_log:
         end_signal = "=> result"
@@ -202,13 +204,13 @@ if __name__ == "__main__":
     
 
     wb = openpyxl.load_workbook(save_file_name)
-    # if "MaPLe" in wb.sheetnames:
-    #     sheet = wb['MaPLe']
-    # else:
-    #     sheet = wb.create_sheet('MaPLe')
-    #     sheet = wb['MaPLe']
-    #     sheet.append(colums_names)
-    sheet = wb['MaPLe-base2new']
+    if "ReMaPLe-base2new" in wb.sheetnames:
+        sheet = wb['ReMaPLe-base2new']
+    else:
+        sheet = wb.create_sheet('ReMaPLe-base2new')
+        sheet = wb['ReMaPLe-base2new']
+        sheet.append(colums_names)
+    # sheet = wb['ReMaPLe-base2new']
     sheet.append(train_average_list)
     sheet.append(test_average_list)
     sheet.append([])

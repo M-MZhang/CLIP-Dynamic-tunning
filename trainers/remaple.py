@@ -34,7 +34,7 @@ def load_clip_to_cpu(cfg):
                       "vision_depth": 0,
                       "language_depth": 0, "vision_ctx": 0,
                       "language_ctx": 0,
-                      "maple_length": cfg.TRAINER.MAPLE.N_CTX}
+                      "maple_length": cfg.TRAINER.ReMAPLE.N_CTX}
     model = clip.build_model(state_dict or model.state_dict(), design_details)
 
     return model
@@ -202,9 +202,9 @@ def _get_clones(module, N):
 
 
 @TRAINER_REGISTRY.register()
-class MaPLe(TrainerX):
+class ReMaPLe(TrainerX):
     def check_cfg(self, cfg):
-        assert cfg.TRAINER.MAPLE.PREC in ["fp16", "fp32", "amp"]
+        assert cfg.TRAINER.ReMAPLE.PREC in ["fp16", "fp32", "amp"]
 
     def build_model(self):
         cfg = self.cfg
@@ -213,7 +213,7 @@ class MaPLe(TrainerX):
         print(f"Loading CLIP (backbone: {cfg.MODEL.BACKBONE.NAME})")
         clip_model = load_clip_to_cpu(cfg)
 
-        if cfg.TRAINER.MAPLE.PREC == "fp32" or cfg.TRAINER.MAPLE.PREC == "amp":
+        if cfg.TRAINER.ReMAPLE.PREC == "fp32" or cfg.TRAINER.ReMAPLE.PREC == "amp":
             # CLIP's default precision is fp16
             clip_model.float()
 
@@ -247,14 +247,14 @@ class MaPLe(TrainerX):
         self.sched = build_lr_scheduler(self.optim, cfg.OPTIM)
         self.register_model("MultiModalPromptLearner", self.model, self.optim, self.sched)
 
-        self.scaler = GradScaler() if cfg.TRAINER.MAPLE.PREC == "amp" else None
+        self.scaler = GradScaler() if cfg.TRAINER.ReMAPLE.PREC == "amp" else None
 
         # Note that multi-gpu training could be slow because CLIP's size is
         # big, which slows down the copy operation in DataParallel
-        device_count = torch.cuda.device_count()
-        if device_count > 1:
-            print(f"Multiple GPUs detected (n_gpus={device_count}), use all of them!")
-            self.model = nn.DataParallel(self.model)
+        # device_count = torch.cuda.device_count()
+        # if device_count > 1:
+        #     print(f"Multiple GPUs detected (n_gpus={device_count}), use all of them!")
+        #     self.model = nn.DataParallel(self.model)
 
     def forward_backward(self, batch):
         image, label = self.parse_batch_train(batch)
@@ -263,7 +263,7 @@ class MaPLe(TrainerX):
         optim = self.optim
         scaler = self.scaler
 
-        prec = self.cfg.TRAINER.MAPLE.PREC
+        prec = self.cfg.TRAINER.ReMAPLE.PREC
         if prec == "amp":
             with autocast():
                 loss = model(image, label)
