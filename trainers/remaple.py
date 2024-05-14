@@ -30,28 +30,33 @@ def load_clip_to_cpu(cfg):
 
     except RuntimeError:
         state_dict = torch.load(model_path, map_location="cpu")
-    design_details = {"trainer": 'MaPLe',
+    design_details = {"trainer": 'MaPLe', #不要改，影响到model中的transformer选择
                       "vision_depth": 0,
                       "language_depth": 0, "vision_ctx": 0,
                       "language_ctx": 0,
-                      "maple_length": cfg.TRAINER.ReMAPLE.N_CTX}
+                      "maple_length": cfg.TRAINER.ReMAPLE.N_CTX,
+                      "ctx_prompt_len": 4}
     model = clip.build_model(state_dict or model.state_dict(), design_details)
 
     return model
 
 
 class TextEncoder(nn.Module):
-    def __init__(self, clip_model):
+    def __init__(self, ctx_prompt_len, clip_model):
         super().__init__()
         self.transformer = clip_model.transformer
         self.positional_embedding = clip_model.positional_embedding
         self.ln_final = clip_model.ln_final
         self.text_projection = clip_model.text_projection
         self.dtype = clip_model.dtype
+        self.ctx_prompt_len = ctx_prompt_len
 
-    def forward(self, prompts, tokenized_prompts, compound_prompts_deeper_text):
+    def forward(self, ctx, prompts, tokenized_prompts, compound_prompts_deeper_text):
         x = prompts + self.positional_embedding.type(self.dtype)
         x = x.permute(1, 0, 2)  # NLD -> LND
+        prefix = x[:1 + self.ctx_prompt_len, :, :]
+        suffix = x[1 + self.ctx_prompt_len:, :, :]
+        x = torch.cat([prefix, ctx.permute(1,0,2), suffix], dim=0)
         # Pass as the list, as nn.sequential cannot process multiple arguments in the forward pass
         combined = [x, compound_prompts_deeper_text, 0]  # third argument is the counter which denotes depth of prompt
         outputs = self.transformer(combined)
@@ -61,7 +66,7 @@ class TextEncoder(nn.Module):
 
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        x = x[torch.arange(x.shape[0]), tokenized_prompts.argmax(dim=-1)] @ self.text_projection
+        x = x[torch.arange(x.shape[0]), self.ctx_prompt_len + tokenized_prompts.argmax(dim=-1)] @ self.text_projection
 
         return x
 
@@ -83,18 +88,37 @@ class MultiModalPromptLearner(nn.Module):
 
         # 改变为:为img端构建prompt
         # 全部都随机初始化
-        ctx_vectors = torch.empty(n_ctx, 768, dtype=dtype)
-        nn.init.normal_(ctx_vectors, std=0.02)
-        prompt_prefix = " ".join(["X"] * n_ctx)
+        itx_vectors = torch.empty(n_ctx, 768, dtype=dtype)
+        nn.init.normal_(itx_vectors, std=0.02)
+        img_prompt_prefix = " ".join(["X"] * n_ctx)
 
-        print('Re-MaPLe design: Reverse Multi-modal Prompt Learning')
-        print(f'Initial context: "{prompt_prefix}"')
-        print(f"Number of Re-MaPLe context words (tokens): {n_ctx}")
         # These below, related to the shallow prompts
         # Linear layer so that the tokens will project to 512 and will be initialized from 768
         self.proj = nn.Linear(768, ctx_dim)
         self.proj.half()
-        self.ctx = nn.Parameter(ctx_vectors)
+        self.itx = nn.Parameter(itx_vectors)
+
+        if ctx_init:
+            # use given words to initialize context vectors
+            ctx_init = ctx_init.replace("_", " ")
+            n_ctx = n_ctx
+            prompt =_tokenizer.encode(ctx_init)
+            self.ctx_prompt_len = len(prompt)
+            # with torch.no_grad():
+            #     embedding = clip_model.token_embedding(prompt).type(dtype)
+            # ctx_vectors = embedding[0, 1: 1 + n_ctx, :]
+            prompt_prefix = ctx_init
+        else:
+            # random initialization
+            ctx_vectors = torch.empty(n_ctx, ctx_dim, dtype=dtype)
+            nn.init.normal_(ctx_vectors, std=0.02)
+            prompt_prefix = " ".join(["X"] * n_ctx)
+
+        print('Re-MaPLe design: Reverse Multi-modal Prompt Learning')
+        print(f'Initial context: "{prompt_prefix}" + "{img_prompt_prefix}"')
+        print(f"Number of Re-MaPLe context words (tokens): {n_ctx}")
+
+
         # These below parameters related to the shared prompts
         # Define the compound prompts for the deeper layers
 
@@ -120,8 +144,8 @@ class MultiModalPromptLearner(nn.Module):
         # These token vectors will be saved when in save_model(),
         # but they should be ignored in load_model() as we want to use
         # those computed using the current class names
-        self.register_buffer("token_prefix", embedding[:, :1, :])  # SOS
-        self.register_buffer("token_suffix", embedding[:, 1 + n_ctx:, :])  # CLS, EOS
+        self.register_buffer("token_prefix", embedding[:, :1 + self.ctx_prompt_len, :])  # SOS+prompt_prefix
+        self.register_buffer("token_suffix", embedding[:, 1 + self.ctx_prompt_len:, :])  # CLS, EOS
 
         self.n_cls = n_cls
         self.n_ctx = n_ctx
@@ -141,7 +165,7 @@ class MultiModalPromptLearner(nn.Module):
         prompts = torch.cat(
             [
                 prefix,  # (dim0, 1, dim)
-                ctx,  # (dim0, n_ctx, dim)
+                # ctx,  # (dim0, n_ctx, dim)
                 suffix,  # (dim0, *, dim)
             ],
             dim=1,
@@ -150,7 +174,7 @@ class MultiModalPromptLearner(nn.Module):
         return prompts
 
     def forward(self):
-        ctx = self.proj(self.ctx) # transform img-prompts to text-prompts
+        ctx = self.proj(self.itx) # transform img-prompts to text-prompts
 
         if ctx.dim() == 2:
             ctx = ctx.unsqueeze(0).expand(self.n_cls, -1, -1)
@@ -166,7 +190,7 @@ class MultiModalPromptLearner(nn.Module):
             text_deep_prompts.append(layer(self.compound_prompts_img[index]))
         # Now the other way around
         # We will project the textual prompts from 512 to 768
-        return prompts, self.ctx, self.compound_prompts_img, text_deep_prompts   # pass here original, as for visual 768 is required
+        return ctx, prompts, self.itx, self.compound_prompts_img, text_deep_prompts   # pass here original, as for visual 768 is required
 
 
 class CustomCLIP(nn.Module):
@@ -175,7 +199,7 @@ class CustomCLIP(nn.Module):
         self.prompt_learner = MultiModalPromptLearner(cfg, classnames, clip_model)
         self.tokenized_prompts = self.prompt_learner.tokenized_prompts
         self.image_encoder = clip_model.visual
-        self.text_encoder = TextEncoder(clip_model)
+        self.text_encoder = TextEncoder(self.prompt_learner.ctx_prompt_len, clip_model)
         self.logit_scale = clip_model.logit_scale
         self.dtype = clip_model.dtype
 
@@ -183,8 +207,8 @@ class CustomCLIP(nn.Module):
         tokenized_prompts = self.tokenized_prompts
         logit_scale = self.logit_scale.exp()
 
-        prompts, shared_ctx, deep_compound_prompts_vision, deep_compound_prompts_text = self.prompt_learner()
-        text_features = self.text_encoder(prompts, tokenized_prompts, deep_compound_prompts_text)
+        ctx, prompts, shared_ctx, deep_compound_prompts_vision, deep_compound_prompts_text = self.prompt_learner()
+        text_features = self.text_encoder(ctx, prompts, tokenized_prompts, deep_compound_prompts_text)
         image_features = self.image_encoder(image.type(self.dtype), shared_ctx, deep_compound_prompts_vision)
 
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)

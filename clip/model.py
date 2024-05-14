@@ -275,6 +275,7 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
         self.attn_mask = attn_mask
         # This must be consistent with the config file prompt
         self.compound_prompt_nctx = design_details['maple_length']
+        self.ctx_prompt_len = design_details['ctx_prompt_len']
         if i == 0:
             self.first_layer = True
         else:
@@ -316,8 +317,8 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
                         # Appending the learnable tokens in different way
                         # x -> [77, NCLS, DIM]
                         # First remove the learnable tokens from previous layer
-                        prefix = x[:1, :, :]
-                        suffix = x[1 + self.compound_prompt_nctx:, :, :]
+                        prefix = x[:1 + self.ctx_prompt_len, :, :]
+                        suffix = x[1 + self.compound_prompt_nctx + self.ctx_prompt_len:, :, :]
                         # Create/configure learnable tokens of this layer
                         textual_context = compound_prompts_deeper[counter]
                         textual_context = textual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
@@ -495,6 +496,7 @@ class CLIP(nn.Module):
         super().__init__()
 
         self.context_length = context_length
+        self.n_ctx = design_details['maple_length']
         trainer = design_details['trainer']
 
         if isinstance(vision_layers, (tuple, list)):
@@ -583,7 +585,7 @@ class CLIP(nn.Module):
     def build_attention_mask(self):
         # lazily create causal attention mask, with full attention between the vision tokens
         # pytorch uses additive attention mask; fill with -inf
-        mask = torch.empty(self.context_length, self.context_length)
+        mask = torch.empty(self.context_length + self.n_ctx, self.context_length + self.n_ctx)
         mask.fill_(float("-inf"))
         mask.triu_(1)  # zero out the lower diagonal
         return mask

@@ -174,9 +174,9 @@ if __name__ == "__main__":
     # 需要写入excel表中
     save_dir = "/root/data1/zmm/output"
     save_file_name = save_dir + "/results.xlsx"
-    colums_names = ["caltech101", "oxford_pets", "stanford_cars", "oxford_flowers", "food101", "fgvc_aircraft", "sun397", "dtd", "eurosat", "ucf101"]
+    colums_names = ["caltech101", "oxford_pets", "stanford_cars", "oxford_flowers", "food101", "fgvc_aircraft", "sun397", "dtd", "eurosat", "ucf101", "version", "notes"]
 
-    # colums_names = ["ucf101"]
+    # colums_names = ["eurosat"]
 
     if not os.path.exists(save_file_name):
         wb = openpyxl.Workbook(save_file_name)
@@ -186,10 +186,12 @@ if __name__ == "__main__":
     
     train_average_list = []
     test_average_list = []
-    for dataset in colums_names:
+    notes = "通过在text中增加两维进行，扩展到79维，并使用'a photo of a' 这个初始化前缀，看看结果"
+    version = 1
+    for dataset in colums_names[0:10]:
         end_signal = "Finish training"
     
-        train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/ReMaPLe/vit_b16_c2_ep5_batch4_2ctx"
+        train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/ReMaPLe_1/vit_b16_c2_ep5_batch4_2ctx"
         args.directory = train_dictionary
         results, stds = main(args, end_signal)
         train_average_list.append(str(round(results['accuracy'],2)) + " % +- " + str(round(stds,2)) + " %")
@@ -202,7 +204,10 @@ if __name__ == "__main__":
         results, stds = main(args, end_signal)
         test_average_list.append(str(round(results['accuracy'],2)) + " % +-" + str(round(stds,2)) + " %")
     
-
+    train_average_list.append(str(version))
+    train_average_list.append(notes)
+    # test_average_list.append(str(version))
+    # test_average_list.append(notes)
     wb = openpyxl.load_workbook(save_file_name)
     if "ReMaPLe-base2new" in wb.sheetnames:
         sheet = wb['ReMaPLe-base2new']
