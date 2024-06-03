@@ -70,7 +70,7 @@ class MultiModalPromptLearner(nn.Module):
     def __init__(self, cfg, classnames, clip_model):
         super().__init__()
         n_cls = len(classnames)
-        n_ctx = cfg.TRAINER.MAPLE.N_CTX
+        n_ctx = cfg.TRAINER.ReMAPLE.N_CTX
         ctx_init = cfg.TRAINER.MAPLE.CTX_INIT
         dtype = clip_model.dtype
         ctx_dim = clip_model.ln_final.weight.shape[0]
@@ -81,33 +81,43 @@ class MultiModalPromptLearner(nn.Module):
         self.compound_prompts_depth = cfg.TRAINER.MAPLE.PROMPT_DEPTH  # max=12, but will create 11 such shared prompts
         assert cfg_imsize == clip_imsize, f"cfg_imsize ({cfg_imsize}) must equal to clip_imsize ({clip_imsize})"
 
-        # 改变为:为img端构建prompt
-        # 全部都随机初始化
-        ctx_vectors = torch.empty(n_ctx, 768, dtype=dtype)
-        nn.init.normal_(ctx_vectors, std=0.02)
-        prompt_prefix = " ".join(["X"] * n_ctx)
-
-        print('Re-MaPLe design: Reverse Multi-modal Prompt Learning')
+        if ctx_init and (n_ctx) <= 4:
+            # use given words to initialize context vectors
+            ctx_init = ctx_init.replace("_", " ")
+            n_ctx = n_ctx
+            prompt = clip.tokenize(ctx_init)
+            with torch.no_grad():
+                embedding = clip_model.token_embedding(prompt).type(dtype)
+            ctx_vectors = embedding[0, 1: 1 + n_ctx, :]
+            prompt_prefix = ctx_init
+        else:
+            # random initialization
+            ctx_vectors = torch.empty(n_ctx, ctx_dim, dtype=dtype)
+            nn.init.normal_(ctx_vectors, std=0.02)
+            prompt_prefix = " ".join(["X"] * n_ctx)
+        print('MaPLe design: Multi-modal Prompt Learning')
         print(f'Initial context: "{prompt_prefix}"')
-        print(f"Number of Re-MaPLe context words (tokens): {n_ctx}")
+        print(f"Number of MaPLe context words (tokens): {n_ctx}")
         # These below, related to the shallow prompts
         # Linear layer so that the tokens will project to 512 and will be initialized from 768
-        self.proj = nn.Linear(768, ctx_dim)
-        self.proj.half()
+        # self.proj = nn.Linear(ctx_dim, 768)
+        # self.proj.half()
+        # # These below parameters related to the shared prompts
+        # # Define the compound prompts for the deeper layers
         self.ctx = nn.Parameter(ctx_vectors)
-        # These below parameters related to the shared prompts
-        # Define the compound prompts for the deeper layers
-
         # Minimum can be 1, which defaults to shallow MaPLe
         # compound prompts
-        self.compound_prompts_img = nn.ParameterList([nn.Parameter(torch.empty(n_ctx, 768))
-                                                      for _ in range(self.compound_prompts_depth - 1)])
-
-        for single_para in self.compound_prompts_img:
+        self.compound_prompts_text = [self.ctx]
+        for _ in range(self.compound_prompts_depth - 1):
+            self.compound_prompts_text.append(nn.Parameter(torch.empty(n_ctx, 512)))  
+        self.compound_prompts_text = nn.ParameterList(self.compound_prompts_text)   
+        
+        for single_para in self.compound_prompts_text:
             nn.init.normal_(single_para, std=0.02)
         # Also make corresponding projection layers, for each prompt
-        single_layer = nn.Linear(768, ctx_dim)
-        self.compound_prompt_projections = _get_clones(single_layer, self.compound_prompts_depth - 1)
+        single_layer = nn.Linear(ctx_dim, 768)
+        self.compound_prompt_projections = _get_clones(single_layer, self.compound_prompts_depth)
+        self.compound_prompt_projections[0].half()
 
         classnames = [name.replace("_", " ") for name in classnames]
         name_lens = [len(_tokenizer.encode(name)) for name in classnames]
@@ -150,7 +160,7 @@ class MultiModalPromptLearner(nn.Module):
         return prompts
 
     def forward(self):
-        ctx = self.proj(self.ctx) # transform img-prompts to text-prompts
+        ctx = self.ctx
 
         if ctx.dim() == 2:
             ctx = ctx.unsqueeze(0).expand(self.n_cls, -1, -1)
@@ -160,13 +170,13 @@ class MultiModalPromptLearner(nn.Module):
         prompts = self.construct_prompts(ctx, prefix, suffix)
 
         # Before returning, need to transform
-        # prompts to 512 for the text side
-        text_deep_prompts = []
+        # prompts to 768 for the visual side
+        visual_deep_prompts = []
         for index, layer in enumerate(self.compound_prompt_projections):
-            text_deep_prompts.append(layer(self.compound_prompts_img[index]))
+            visual_deep_prompts.append(layer(self.compound_prompts_text[index]))
         # Now the other way around
         # We will project the textual prompts from 512 to 768
-        return prompts, self.ctx, self.compound_prompts_img, text_deep_prompts   # pass here original, as for visual 768 is required
+        return prompts, self.compound_prompts_text, visual_deep_prompts   # pass here original, as for visual 768 is required
 
 
 class CustomCLIP(nn.Module):
@@ -183,9 +193,9 @@ class CustomCLIP(nn.Module):
         tokenized_prompts = self.tokenized_prompts
         logit_scale = self.logit_scale.exp()
 
-        prompts, shared_ctx, deep_compound_prompts_vision, deep_compound_prompts_text = self.prompt_learner()
+        prompts, deep_compound_prompts_text, deep_compound_prompts_vision = self.prompt_learner()
         text_features = self.text_encoder(prompts, tokenized_prompts, deep_compound_prompts_text)
-        image_features = self.image_encoder(image.type(self.dtype), shared_ctx, deep_compound_prompts_vision)
+        image_features = self.image_encoder(image.type(self.dtype), deep_compound_prompts_vision)
 
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
@@ -204,7 +214,7 @@ def _get_clones(module, N):
 @TRAINER_REGISTRY.register()
 class ReMaPLe(TrainerX):
     def check_cfg(self, cfg):
-        assert cfg.TRAINER.ReMAPLE.PREC in ["fp16", "fp32", "amp"]
+        assert cfg.TRAINER.MAPLE.PREC in ["fp16", "fp32", "amp"]
 
     def build_model(self):
         cfg = self.cfg
@@ -213,7 +223,7 @@ class ReMaPLe(TrainerX):
         print(f"Loading CLIP (backbone: {cfg.MODEL.BACKBONE.NAME})")
         clip_model = load_clip_to_cpu(cfg)
 
-        if cfg.TRAINER.ReMAPLE.PREC == "fp32" or cfg.TRAINER.ReMAPLE.PREC == "amp":
+        if cfg.TRAINER.MAPLE.PREC == "fp32" or cfg.TRAINER.MAPLE.PREC == "amp":
             # CLIP's default precision is fp16
             clip_model.float()
 
@@ -247,7 +257,7 @@ class ReMaPLe(TrainerX):
         self.sched = build_lr_scheduler(self.optim, cfg.OPTIM)
         self.register_model("MultiModalPromptLearner", self.model, self.optim, self.sched)
 
-        self.scaler = GradScaler() if cfg.TRAINER.ReMAPLE.PREC == "amp" else None
+        self.scaler = GradScaler() if cfg.TRAINER.MAPLE.PREC == "amp" else None
 
         # Note that multi-gpu training could be slow because CLIP's size is
         # big, which slows down the copy operation in DataParallel
@@ -263,7 +273,7 @@ class ReMaPLe(TrainerX):
         optim = self.optim
         scaler = self.scaler
 
-        prec = self.cfg.TRAINER.ReMAPLE.PREC
+        prec = self.cfg.TRAINER.MAPLE.PREC
         if prec == "amp":
             with autocast():
                 loss = model(image, label)

@@ -131,7 +131,7 @@ def extend_cfg(cfg):
 
     # Config for MaPLe
     cfg.TRAINER.ReMAPLE = CN()
-    cfg.TRAINER.ReMAPLE.N_CTX = 2  # number of context vectors
+    cfg.TRAINER.ReMAPLE.N_CTX = 1  # number of context vectors
     cfg.TRAINER.ReMAPLE.CTX_INIT = "a photo of a"  # initialization words
     cfg.TRAINER.ReMAPLE.PREC = "fp16"  # fp16, fp32, amp
     cfg.TRAINER.ReMAPLE.PROMPT_DEPTH = 9 # Max 12, minimum 0, for 1 it will act as shallow MaPLe (J=1)

@@ -7,6 +7,62 @@ import torch.nn.functional as F
 from torch import nn
 
 
+def _gumbel_sigmoid(
+    logits, tau=1, hard=False, eps=1e-10, training = True, threshold = 0.3
+):
+    if training :
+        # ~Gumbel(0,1)`
+        gumbels1 = (
+            -torch.empty_like(logits, memory_format=torch.legacy_contiguous_format)
+            .exponential_()
+            .log()
+        )
+        gumbels2 = (
+            -torch.empty_like(logits, memory_format=torch.legacy_contiguous_format)
+            .exponential_()
+            .log()
+        )
+        # Difference of two` gumbels because we apply a sigmoid
+        gumbels1 = (logits + gumbels1 - gumbels2) / tau
+        y_soft = gumbels1.sigmoid()
+    else :
+        y_soft = logits.sigmoid()
+
+    if hard:
+        # Straight through.
+        y_hard = torch.zeros_like(
+            logits, memory_format=torch.legacy_contiguous_format
+        ).masked_fill(y_soft > threshold, 1.0)
+        ret = (y_hard - y_soft).detach() + y_soft
+    else:
+        ret = y_soft
+    return ret
+
+
+
+class TokenSelect(nn.Module):
+    def __init__(self, dim_in, num_sub_layer, tau=5, is_hard=True, threshold=0.5, bias=True):
+        super().__init__()
+        self.mlp_head = nn.Linear(dim_in, num_sub_layer, bias=bias)
+
+        self.is_hard = is_hard
+        self.tau = tau
+        self.threshold = threshold
+
+    def set_tau(self, tau):
+        self.tau = tau
+
+    def forward(self, x):
+        b, l = x.shape[:2]
+        logits = self.mlp_head(x[:, 1:, :])
+        
+        token_select = _gumbel_sigmoid(logits, self.tau, self.is_hard, threshold=self.threshold, training=self.training)
+        token_select = torch.cat([token_select.new_ones(b, 1, 1), token_select], dim=1)
+        
+        return token_select, logits
+
+
+
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -258,7 +314,7 @@ class ResidualAttentionBlock_IVLP(nn.Module):
 
 class ResidualAttentionBlock_MaPLe(nn.Module):
     def __init__(self, d_model: int, n_head: int, attn_mask: torch.Tensor = None, design_details=None,
-                 text_layer=False, i=0):
+                 text_layer=False, i=0, tau=5, is_hard=True, threshold=0.5, bias=True):
         super().__init__()
 
         self.attn = nn.MultiheadAttention(d_model, n_head)
@@ -275,10 +331,14 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
         self.attn_mask = attn_mask
         # This must be consistent with the config file prompt
         self.compound_prompt_nctx = design_details['maple_length']
-        if i == 0:
-            self.first_layer = True
-        else:
-            self.first_layer = False
+        # if i == 0:
+        #     self.first_layer = True
+        # else:
+        #     self.first_layer = False
+        
+        self.tau = tau
+        self.is_hard = is_hard
+        self.threshold = threshold
 
     def attention(self, x: torch.Tensor):
         self.attn_mask = self.attn_mask.to(dtype=x.dtype, device=x.device) if self.attn_mask is not None else None
@@ -290,43 +350,43 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
         x = inputs[0]
         compound_prompts_deeper = inputs[1]
         counter = inputs[2]
-        if not self.first_layer:
-            if len(compound_prompts_deeper) > 0:
-                # This means that deeper compound prompts are turned on
-                # Here it behaves differently for text and visual side
-                # Forward function is same for both
-
-                if not self.text_layer:
-                    # First check if the ith layer needs compound prompts or not
-                    if not (counter > len(compound_prompts_deeper) - 1):
-                        # Remove the outputs produced by learnable tokens of previous layer
-                        prefix = x[0:x.shape[0] - self.compound_prompt_nctx, :, :]
-                        # Create/configure learnable tokens of this layer
-                        visual_context = compound_prompts_deeper[counter]  # extract the correct index
-                        visual_context = visual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
-                        # Add the learnable tokens of this layer with the input, by replacing previous
-                        # layer learnable tokens
-                        x = torch.cat([prefix, visual_context], dim=0) # prompt in vision is in the end
-
-                        # Once done, update the counter, so that the next time, it does not use same learnable tokens
-                        counter += 1
-                else:
-                    # First check if the ith layer needs compound prompts or not
-                    if not (counter > len(compound_prompts_deeper) - 1):
-                        # Appending the learnable tokens in different way
-                        # x -> [77, NCLS, DIM]
-                        # First remove the learnable tokens from previous layer
-                        prefix = x[:1, :, :]
-                        suffix = x[1 + self.compound_prompt_nctx:, :, :]
-                        # Create/configure learnable tokens of this layer
-                        textual_context = compound_prompts_deeper[counter]
-                        textual_context = textual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
-                        # Add the learnable tokens of this layer with the input, replaced by previous
-                        # layer learnable tokens
-                        x = torch.cat([prefix, textual_context, suffix], dim=0)
-                        # Once done, update the counter, so that the next time, it does not use same learnable tokens
-                        counter += 1
+        
         x = x + self.attention(self.ln_1(x))
+        # start to select
+        if len(compound_prompts_deeper) > 0:
+            # This means that deeper compound prompts are turned on
+            # Here it behaves differently for text and visual side
+            # Forward function is same for both
+
+            if not self.text_layer:
+                # First check if the ith layer needs compound prompts or not
+                if not (counter > len(compound_prompts_deeper) - 1):
+
+                    # calculate pose-wise token select
+                    visual_dispatcher = compound_prompts_deeper[counter] # [n_ctx, n_d]
+                    visual_dispatcher = visual_dispatcher.expand(x.shape[1],-1,-1).permute(1,0,2).half()
+                    logits = torch.mul(x,visual_dispatcher) 
+                    token_select = _gumbel_sigmoid(logits.permute(1,0,2), self.tau, self.is_hard, threshold=self.threshold, training=self.training)
+                    token_select[:,:,0] = 1 # remain the cls token
+                    x = torch.mul(x, token_select.permute(1,0,2)) # Block(x·S)
+                    # Once done, update the counter, so that the next time, it does not use same learnable tokens
+                    counter += 1
+            else:
+                # First check if the ith layer needs compound prompts or not
+                if not (counter > len(compound_prompts_deeper) - 1):
+                    # Appending the learnable tokens in different way
+                    # x -> [77, NCLS, DIM]
+                    # First remove the learnable tokens from previous layer
+                    prefix = x[:1, :, :]
+                    suffix = x[1 + self.compound_prompt_nctx:, :, :]
+                    # Create/configure learnable tokens of this layer
+                    textual_context = compound_prompts_deeper[counter]
+                    textual_context = textual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
+                    # Add the learnable tokens of this layer with the input, replaced by previous
+                    # layer learnable tokens
+                    x = torch.cat([prefix, textual_context, suffix], dim=0)
+                    # Once done, update the counter, so that the next time, it does not use same learnable tokens
+                    counter += 1
         x = x + self.mlp(self.ln_2(x))
         return [x, compound_prompts_deeper, counter]  # return again as a list, so that nn.seq can work
 
@@ -429,7 +489,8 @@ class VisionTransformer_MaPLe(nn.Module):
         self.input_resolution = input_resolution
         self.output_dim = output_dim
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=width, kernel_size=patch_size, stride=patch_size, bias=False)
-        self.VPT_shallow = True
+        # self.VPT_shallow = True
+        self.VPT_shallow = False # 这里先改成false让vision这边不做token的增补
         scale = width ** -0.5
         self.class_embedding = nn.Parameter(scale * torch.randn(width))
         self.positional_embedding = nn.Parameter(scale * torch.randn((input_resolution // patch_size) ** 2 + 1, width))
@@ -442,7 +503,7 @@ class VisionTransformer_MaPLe(nn.Module):
         self.ln_post = LayerNorm(width)
         self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
 
-    def forward(self, x: torch.Tensor, shared_ctx, compound_deeper_prompts):
+    def forward(self, x: torch.Tensor, compound_deeper_prompts):
         x = self.conv1(x)  # shape = [*, width, grid, grid]
         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
         x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
@@ -453,11 +514,11 @@ class VisionTransformer_MaPLe(nn.Module):
 
         # After positional embeddings, we will attach prompts with the model, remember only those
         # are trainable parameters here in whole image encoder.
-        if self.VPT_shallow:
-            visual_ctx = shared_ctx.expand(x.shape[0], -1, -1).half()
-            x = torch.cat([x, visual_ctx], dim=1)
-        else:
-            assert self.prompt_till_layer_visual == 0
+        # if self.VPT_shallow:
+        #     visual_ctx = shared_ctx.expand(x.shape[0], -1, -1).half()
+        #     x = torch.cat([x, visual_ctx], dim=1)
+        # else:
+        #     assert self.prompt_till_layer_visual == 0
 
         # Normal code as before
         x = self.ln_pre(x)
