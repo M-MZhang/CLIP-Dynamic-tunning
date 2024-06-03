@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
+import math
 
 
 class Bottleneck(nn.Module):
@@ -290,46 +291,46 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
         x = inputs[0]
         compound_prompts_deeper = inputs[1]
         counter = inputs[2]
-        if not self.first_layer:
-            if len(compound_prompts_deeper) > 0:
-                # This means that deeper compound prompts are turned on
-                # Here it behaves differently for text and visual side
-                # Forward function is same for both
-
-                if not self.text_layer:
-                    # First check if the ith layer needs compound prompts or not
-                    if not (counter > len(compound_prompts_deeper) - 1):
-                        # Remove the outputs produced by learnable tokens of previous layer
-                        prefix = x[0:x.shape[0] - self.compound_prompt_nctx, :, :]
-                        # Create/configure learnable tokens of this layer
-                        visual_context = compound_prompts_deeper[counter]  # extract the correct index
-                        visual_context = visual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
-                        # Add the learnable tokens of this layer with the input, by replacing previous
-                        # layer learnable tokens
-                        x = torch.cat([prefix, visual_context], dim=0) # prompt in vision is in the end
-
-                        # Once done, update the counter, so that the next time, it does not use same learnable tokens
-                        counter += 1
-                else:
-                    # First check if the ith layer needs compound prompts or not
-                    if not (counter > len(compound_prompts_deeper) - 1):
-                        # Appending the learnable tokens in different way
-                        # x -> [77, NCLS, DIM]
-                        # First remove the learnable tokens from previous layer
-                        prefix = x[:1, :, :]
-                        suffix = x[1 + self.compound_prompt_nctx:, :, :]
-                        # Create/configure learnable tokens of this layer
-                        textual_context = compound_prompts_deeper[counter]
-                        textual_context = textual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
-                        # Add the learnable tokens of this layer with the input, replaced by previous
-                        # layer learnable tokens
-                        x = torch.cat([prefix, textual_context, suffix], dim=0)
-                        # Once done, update the counter, so that the next time, it does not use same learnable tokens
-                        counter += 1
+        # if not self.first_layer:
+        if len(compound_prompts_deeper) > 0:
+            # This means that deeper compound prompts are turned on
+            # Here it behaves differently for text and visual side
+            # Forward function is same for both
+            if self.text_layer:
+                # First check if the ith layer needs compound prompts or not
+                if not (counter > len(compound_prompts_deeper) - 1):
+                    # Appending the learnable tokens in different way
+                    # x -> [77, NCLS, DIM]
+                    # First remove the learnable tokens from previous layer
+                    prefix = x[:1, :, :]
+                    suffix = x[1 + self.compound_prompt_nctx:, :, :]
+                    # Create/configure learnable tokens of this layer
+                    textual_context = compound_prompts_deeper[counter]
+                    textual_context = textual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
+                    # Add the learnable tokens of this layer with the input, replaced by previous
+                    # layer learnable tokens
+                    x = torch.cat([prefix, textual_context, suffix], dim=0)
+                    # Once done, update the counter, so that the next time, it does not use same learnable tokens
+                    counter += 1
         x = x + self.attention(self.ln_1(x))
+        if len(compound_prompts_deeper) > 0 and (not self.text_layer):
+            if not (counter > len(compound_prompts_deeper) - 1):
+                # prune or merge the tokens for vision branch
+                x = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter])
+                counter += 1
         x = x + self.mlp(self.ln_2(x))
         return [x, compound_prompts_deeper, counter]  # return again as a list, so that nn.seq can work
 
+def soft_matching(metric: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[callable, callable]:
+    metric = metric / metric.norm(dim=-1, keepdim=True)
+    dispacher = dispacher / dispacher.norm(dim=-1, keepdim=True) #
+    scores = metric @ dispacher.T # [batch, n_token, 1]
+    scores[..., 0, :] = math.inf 
+    node_idx = scores.argsort(dim=-2, descending=True) # same shape as scores [batch, n_token, 1], descending by row
+    unp_idx = node_idx[..., :scores.shape[1]-r, :]
+    new_metric = metric.gather(dim=-2, index= unp_idx)
+
+    return new_metric.permute(1, 0, 2)
 
 class Transformer(nn.Module):
     def __init__(self, width: int, layers: int, heads: int, attn_mask: torch.Tensor = None, prompts_needed=0,
@@ -451,13 +452,13 @@ class VisionTransformer_MaPLe(nn.Module):
              x], dim=1)  # shape = [*, grid ** 2 + 1, width]
         x = x + self.positional_embedding.to(x.dtype)
 
-        # After positional embeddings, we will attach prompts with the model, remember only those
-        # are trainable parameters here in whole image encoder.
-        if self.VPT_shallow:
-            visual_ctx = shared_ctx.expand(x.shape[0], -1, -1).half()
-            x = torch.cat([x, visual_ctx], dim=1)
-        else:
-            assert self.prompt_till_layer_visual == 0
+        # # After positional embeddings, we will attach prompts with the model, remember only those
+        # # are trainable parameters here in whole image encoder.
+        # if self.VPT_shallow:
+        #     visual_ctx = shared_ctx.expand(x.shape[0], -1, -1).half()
+        #     x = torch.cat([x, visual_ctx], dim=1)
+        # else:
+        #     assert self.prompt_till_layer_visual == 0
 
         # Normal code as before
         x = self.ln_pre(x)
@@ -466,7 +467,7 @@ class VisionTransformer_MaPLe(nn.Module):
         # Again combine the inputs, so nn.sequential can work
         outputs = self.transformer([x, compound_deeper_prompts, 0])  # third argument is counter
         x = outputs[0]
-        x = x.permute(1, 0, 2)  # LND -> NLD
+        x = x.permute(1, 0, 2)  # LND -> NLD    
 
         x = self.ln_post(x[:, 0, :])
 

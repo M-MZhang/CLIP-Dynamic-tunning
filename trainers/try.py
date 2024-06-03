@@ -108,21 +108,21 @@ class MultiModalPromptLearner(nn.Module):
         print(f"Number of MaPLe context words (tokens): {n_ctx}")
         # These below, related to the shallow prompts
         # Linear layer so that the tokens will project to 512 and will be initialized from 768
-        self.proj = nn.Linear(ctx_dim, 768) 
-        self.proj.half()
-        self.ctx = nn.Parameter(ctx_vectors)
+        # self.proj = nn.Linear(ctx_dim, 768) 
+        # self.proj.half()
+        # self.ctx = nn.Parameter(ctx_vectors)
         # These below parameters related to the shared prompts
         # Define the compound prompts for the deeper layers
 
         # Minimum can be 1, which defaults to shallow MaPLe
-        # compound prompts
+        # compound prompts by all randomly
         self.compound_prompts_text = nn.ParameterList([nn.Parameter(torch.empty(n_ctx, 512))
-                                                      for _ in range(self.compound_prompts_depth - 1)])
+                                                      for _ in range(self.compound_prompts_depth)])
         for single_para in self.compound_prompts_text:
             nn.init.normal_(single_para, std=0.02)
         # Also make corresponding projection layers, for each prompt
         single_layer = nn.Linear(ctx_dim, 768)
-        self.compound_prompt_projections = _get_clones(single_layer, self.compound_prompts_depth - 1)
+        self.compound_prompt_projections = _get_clones(single_layer, self.compound_prompts_depth)
 
         classnames = [name.replace("_", " ") for name in classnames]
         name_lens = [len(_tokenizer.encode(name)) for name in classnames]
@@ -142,37 +142,38 @@ class MultiModalPromptLearner(nn.Module):
         self.n_ctx = n_ctx
         self.tokenized_prompts = tokenized_prompts  # torch.Tensor
         self.name_lens = name_lens
+        self.txt_prompts = embedding
 
-    def construct_prompts(self, ctx, prefix, suffix, label=None):
-        # dim0 is either batch_size (during training) or n_cls (during testing)
-        # ctx: context tokens, with shape of (dim0, n_ctx, ctx_dim)
-        # prefix: the sos token, with shape of (n_cls, 1, ctx_dim)
-        # suffix: remaining tokens, with shape of (n_cls, *, ctx_dim)
+    # def construct_prompts(self, ctx, prefix, suffix, label=None):
+    #     # dim0 is either batch_size (during training) or n_cls (during testing)
+    #     # ctx: context tokens, with shape of (dim0, n_ctx, ctx_dim)
+    #     # prefix: the sos token, with shape of (n_cls, 1, ctx_dim)
+    #     # suffix: remaining tokens, with shape of (n_cls, *, ctx_dim)
 
-        if label is not None:
-            prefix = prefix[label]
-            suffix = suffix[label]
+    #     if label is not None:
+    #         prefix = prefix[label]
+    #         suffix = suffix[label]
 
-        prompts = torch.cat(
-            [
-                prefix,  # (dim0, 1, dim)
-                ctx,  # (dim0, n_ctx, dim)
-                suffix,  # (dim0, *, dim)
-            ],
-            dim=1,
-        )
+    #     prompts = torch.cat(
+    #         [
+    #             prefix,  # (dim0, 1, dim)
+    #             ctx,  # (dim0, n_ctx, dim)
+    #             suffix,  # (dim0, *, dim)
+    #         ],
+    #         dim=1,
+    #     )
 
-        return prompts
+    #     return prompts
 
     def forward(self):
-        ctx = self.ctx
+        # ctx = self.compound_prompts_text[0]
 
-        if ctx.dim() == 2:
-            ctx = ctx.unsqueeze(0).expand(self.n_cls, -1, -1)
+        # if ctx.dim() == 2:
+        #     ctx = ctx.unsqueeze(0).expand(self.n_cls, -1, -1)
 
-        prefix = self.token_prefix
-        suffix = self.token_suffix
-        prompts = self.construct_prompts(ctx, prefix, suffix)
+        # prefix = self.token_prefix
+        # suffix = self.token_suffix
+        # prompts = self.construct_prompts(ctx, prefix, suffix)
 
         # Before returning, need to transform
         # prompts to 768 for the visual side
@@ -181,7 +182,7 @@ class MultiModalPromptLearner(nn.Module):
             visual_deep_prompts.append(layer(self.compound_prompts_text[index]))
         # Now the other way around
         # We will project the textual prompts from 512 to 768
-        return prompts, self.proj(self.ctx), self.compound_prompts_text, visual_deep_prompts   # pass here original, as for visual 768 is required
+        return self.txt_prompts, self.compound_prompts_text, visual_deep_prompts   # pass here original, as for visual 768 is required
 
 
 class CustomCLIP(nn.Module):
@@ -198,9 +199,9 @@ class CustomCLIP(nn.Module):
         tokenized_prompts = self.tokenized_prompts
         logit_scale = self.logit_scale.exp()
 
-        prompts, shared_ctx, deep_compound_prompts_text, deep_compound_prompts_vision = self.prompt_learner()
+        prompts, deep_compound_prompts_text, deep_compound_prompts_vision = self.prompt_learner()
         text_features = self.text_encoder(prompts, tokenized_prompts, deep_compound_prompts_text)
-        image_features = self.image_encoder(image.type(self.dtype), shared_ctx, deep_compound_prompts_vision)
+        image_features = self.image_encoder(image.type(self.dtype), deep_compound_prompts_vision)
 
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
