@@ -123,6 +123,7 @@ class MultiModalPromptLearner(nn.Module):
         # Also make corresponding projection layers, for each prompt
         single_layer = nn.Linear(ctx_dim, 768)
         self.compound_prompt_projections = _get_clones(single_layer, self.compound_prompts_depth)
+        # self.compound_prompt_projections[0].half()
 
         classnames = [name.replace("_", " ") for name in classnames]
         name_lens = [len(_tokenizer.encode(name)) for name in classnames]
@@ -137,12 +138,13 @@ class MultiModalPromptLearner(nn.Module):
         # those computed using the current class names
         self.register_buffer("token_prefix", embedding[:, :1, :])  # SOS
         self.register_buffer("token_suffix", embedding[:, 1 + n_ctx:, :])  # CLS, EOS
+        self.register_buffer("txt_prompts", embedding)
 
         self.n_cls = n_cls
         self.n_ctx = n_ctx
         self.tokenized_prompts = tokenized_prompts  # torch.Tensor
         self.name_lens = name_lens
-        self.txt_prompts = embedding
+        # self.txt_prompts = torch.tensor(embedding, device='cuda')
 
     # def construct_prompts(self, ctx, prefix, suffix, label=None):
     #     # dim0 is either batch_size (during training) or n_cls (during testing)

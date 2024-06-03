@@ -316,19 +316,21 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
         if len(compound_prompts_deeper) > 0 and (not self.text_layer):
             if not (counter > len(compound_prompts_deeper) - 1):
                 # prune or merge the tokens for vision branch
-                x = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter])
+                x = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 2)
                 counter += 1
         x = x + self.mlp(self.ln_2(x))
         return [x, compound_prompts_deeper, counter]  # return again as a list, so that nn.seq can work
 
-def soft_matching(metric: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[callable, callable]:
-    metric = metric / metric.norm(dim=-1, keepdim=True)
-    dispacher = dispacher / dispacher.norm(dim=-1, keepdim=True) #
-    scores = metric @ dispacher.T # [batch, n_token, 1]
+def soft_matching(x: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[callable, callable]:
+    metric = x / x.norm(dim=-1, keepdim=True)
+    selector = dispacher / dispacher.norm(dim=-1, keepdim=True) #
+    scores = metric @ selector.T.half() # [batch, n_token, 1]
     scores[..., 0, :] = math.inf 
-    node_idx = scores.argsort(dim=-2, descending=True) # same shape as scores [batch, n_token, 1], descending by row
+    scores = scores.squeeze(-1)
+    n, t1, c = x.shape
+    node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) # same shape as scores [batch, n_token, 1], descending by row
     unp_idx = node_idx[..., :scores.shape[1]-r, :]
-    new_metric = metric.gather(dim=-2, index= unp_idx)
+    new_metric = x.gather(dim=-2, index= unp_idx) # [batch, x.shape[1]-r, n_channel]
 
     return new_metric.permute(1, 0, 2)
 
@@ -443,7 +445,7 @@ class VisionTransformer_MaPLe(nn.Module):
         self.ln_post = LayerNorm(width)
         self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
 
-    def forward(self, x: torch.Tensor, shared_ctx, compound_deeper_prompts):
+    def forward(self, x: torch.Tensor, compound_deeper_prompts):
         x = self.conv1(x)  # shape = [*, width, grid, grid]
         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
         x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
