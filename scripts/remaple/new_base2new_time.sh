@@ -9,10 +9,10 @@ TRAINER=ReMaPLe
 # DATASET=$1
 # SEED=$2
 
-# DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
-DATASET="ucf101"
-# SEED=(1 2 3)
-SEED=1
+DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+# DATASET="ucf101"
+SEED=(1 2 3)
+# SEED=1
 
 CFG=vit_b16_c2_ep5_batch4_2ctx
 SHOTS=16
@@ -25,12 +25,12 @@ do
     do
         COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_3/${CFG}/seed${seed}
         MODEL_DIR=~/data1/zmm/output/base2new/train_base/${COMMON_DIR}
-        DIR=~/data1/zmm/output/base2new/test_${SUB}/${COMMON_DIR}
+        DIR=~/data1/zmm/output/base2new/test_time_${SUB}/${COMMON_DIR}
         if [ -d "$DIR" ]; then
             echo "Evaluating model"
             echo "Results are available in ${DIR}. Resuming..."
 
-            python train.py \
+            python benchmark.py \
             --root ${DATA} \
             --seed ${seed} \
             --trainer ${TRAINER} \
@@ -47,7 +47,7 @@ do
             echo "Evaluating model"
             echo "Runing the first phase job and save the output to ${DIR}"
 
-            python train.py \
+            python benchmark.py \
             --root ${DATA} \
             --seed ${seed} \
             --trainer ${TRAINER} \

@@ -255,10 +255,13 @@ class ReMaPLe(TrainerX):
 
         # Double check
         enabled = set()
+        num_param = 0
         for name, param in self.model.named_parameters():
             if param.requires_grad:
                 enabled.add(name)
+                num_param += param.numel()
         print(f"Parameters to be updated: {enabled}")
+        print(f"Number of trainable parameters is: {num_param/1000000.0 :.2f} M") # calculate the number of trainable parameters
 
         if cfg.MODEL.INIT_WEIGHTS:
             load_pretrained_weights(self.model, cfg.MODEL.INIT_WEIGHTS)
