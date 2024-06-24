@@ -49,6 +49,7 @@ do
             --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
             --output-dir ${DIR} \
             --eval-only \
+            DATASET.NUM_SHOTS ${SHOTS} \
 
         else
             echo "Evaluating model"
@@ -62,7 +63,7 @@ do
             --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
             --output-dir ${DIR} \
             --eval-only \
-
+            DATASET.NUM_SHOTS ${SHOTS} 
         fi
     done
 done

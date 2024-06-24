@@ -129,7 +129,11 @@ def extend_cfg(cfg):
     cfg.TRAINER.VPT.PROMPT_DEPTH_VISION = 1  # if set to 1, will represent shallow vision prompting only
     cfg.DATASET.SUBSAMPLE_CLASSES = "all"  # all, base or new
 
-    # Config for MaPLe
+    # Config for zsclip
+    cfg.TRAINER.ZSCLIP = CN()
+    cfg.DATASET.SUBSAMPLE_CLASSES = "all"
+
+    # Config for ReMaPLe
     cfg.TRAINER.ReMAPLE = CN()
     cfg.TRAINER.ReMAPLE.N_CTX = 2  # number of context vectors
     cfg.TRAINER.ReMAPLE.CTX_INIT = "a photo of a"  # initialization words
