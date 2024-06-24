@@ -3,33 +3,37 @@
 #cd ../..
 
 # custom config
-DATA=/path/to/datasets
+DATA="~/data1/zmm/data"
 TRAINER=CoOp
 
-DATASET=$1
-CFG=$2  # config file
-CTP=$3  # class token position (end or middle)
-NCTX=$4  # number of context tokens
-SHOTS=$5  # number of shots (1, 2, 4, 8, 16)
-CSC=$6  # class-specific context (False or True)
+DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+CFG=vit_b16  # config file
+CTP=end  # class token position (end or middle)
+NCTX=16  # number of context tokens
+SHOTS=16  # number of shots (1, 2, 4, 8, 16)
+CSC=False  # class-specific context (False or True)
 
-for SEED in 1 2 3
+for dataset in ${DATASET[@]}
 do
-    DIR=output/${DATASET}/${TRAINER}/${CFG}_${SHOTS}shots/nctx${NCTX}_csc${CSC}_ctp${CTP}/seed${SEED}
-    if [ -d "$DIR" ]; then
-        echo "Results are available in ${DIR}. Skip this job"
-    else
-        echo "Run this job and save the output to ${DIR}"
-        python train.py \
-        --root ${DATA} \
-        --seed ${SEED} \
-        --trainer ${TRAINER} \
-        --dataset-config-file configs/datasets/${DATASET}.yaml \
-        --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
-        --output-dir ${DIR} \
-        TRAINER.COOP.N_CTX ${NCTX} \
-        TRAINER.COOP.CSC ${CSC} \
-        TRAINER.COOP.CLASS_TOKEN_POSITION ${CTP} \
-        DATASET.NUM_SHOTS ${SHOTS}
-    fi
+    for SEED in 1 2 3
+    do
+        DIR=~/data1/zmm/output/base2new/train_base/${dataset}/shots_${SHOTS}/${TRAINER}/${CFG}_nctx${NCTX}_csc${CSC}_ctp${CTP}/seed${SEED}
+        if [ -d "$DIR" ]; then
+            echo "Results are available in ${DIR}. Skip this job"
+        else
+            echo "Run this job and save the output to ${DIR}"
+            python train.py \
+            --root ${DATA} \
+            --seed ${SEED} \
+            --trainer ${TRAINER} \
+            --dataset-config-file configs/datasets/${DATASET}.yaml \
+            --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
+            --output-dir ${DIR} \
+            TRAINER.COOP.N_CTX ${NCTX} \
+            TRAINER.COOP.CSC ${CSC} \
+            TRAINER.COOP.CLASS_TOKEN_POSITION ${CTP} \
+            DATASET.NUM_SHOTS ${SHOTS} \
+            DATASET.SUBSAMPLE_CLASSES base
+        fi
+    done
 done
