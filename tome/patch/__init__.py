@@ -8,6 +8,6 @@
 from .swag import apply_patch as swag
 from .timm import apply_patch as timm
 from .mae  import apply_patch as mae
-from .clip import apply_patch as clip
+# from .clip import apply_patch as clip
 
-__all__ = ["timm", "swag", "mae", "clip"]
+__all__ = ["timm", "swag", "mae"]

@@ -21,8 +21,8 @@ do
     do
         COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}/${CFG}_nctx${NCTX}_csc${CSC}_ctp${CTP}/seed${SEED}
         MODEL_DIR=~/data1/zmm/output/base2new/train_base/${COMMON_DIR}
-        DIR=~/data1/zmm/output/base2new/test_new/${COMMON_DIR}
-        python train.py \
+        DIR=~/data1/zmm/output/time_test/${COMMON_DIR}
+        python benchmark.py \
         --root ${DATA} \
         --seed ${SEED} \
         --trainer ${TRAINER} \
@@ -36,6 +36,6 @@ do
         TRAINER.COOP.CSC ${CSC} \
         TRAINER.COOP.CLASS_TOKEN_POSITION ${CTP}\
         DATASET.NUM_SHOTS ${SHOTS} \
-        DATASET.SUBSAMPLE_CLASSES new
+        DATASET.SUBSAMPLE_CLASSES base
     done
 done
