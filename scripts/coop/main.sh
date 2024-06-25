@@ -6,7 +6,8 @@
 DATA="~/data1/zmm/data"
 TRAINER=CoOp
 
-DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+# DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+DATASET="caltech101"
 CFG=vit_b16  # config file
 CTP=end  # class token position (end or middle)
 NCTX=16  # number of context tokens
@@ -15,7 +16,7 @@ CSC=False  # class-specific context (False or True)
 
 for dataset in ${DATASET[@]}
 do
-    for SEED in 1 2 3
+    for SEED in 2
     do
         DIR=~/data1/zmm/output/base2new/train_base/${dataset}/shots_${SHOTS}/${TRAINER}/${CFG}_nctx${NCTX}_csc${CSC}_ctp${CTP}/seed${SEED}
         if [ -d "$DIR" ]; then

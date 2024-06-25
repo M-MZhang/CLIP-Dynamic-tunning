@@ -3,29 +3,39 @@
 #cd ../..
 
 # custom config
-DATA=/path/to/datasets
+DATA=~/data1/zmm/data
 TRAINER=CoOp
 SHOTS=16
 NCTX=16
 CSC=False
 CTP=end
 
-DATASET=$1
-CFG=$2
+DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+CFG=vit_b16  # config file
 
-for SEED in 1 2 3
+
+
+for dataset in ${DATASET[@]}
 do
-    python train.py \
-    --root ${DATA} \
-    --seed ${SEED} \
-    --trainer ${TRAINER} \
-    --dataset-config-file configs/datasets/${DATASET}.yaml \
-    --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
-    --output-dir output/evaluation/${TRAINER}/${CFG}_${SHOTS}shots/nctx${NCTX}_csc${CSC}_ctp${CTP}/${DATASET}/seed${SEED} \
-    --model-dir output/imagenet/${TRAINER}/${CFG}_${SHOTS}shots/nctx${NCTX}_csc${CSC}_ctp${CTP}/seed${SEED} \
-    --load-epoch 50 \
-    --eval-only \
-    TRAINER.COOP.N_CTX ${NCTX} \
-    TRAINER.COOP.CSC ${CSC} \
-    TRAINER.COOP.CLASS_TOKEN_POSITION ${CTP}
+    for SEED in 1 2 3
+    do
+        COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}/${CFG}_nctx${NCTX}_csc${CSC}_ctp${CTP}/seed${SEED}
+        MODEL_DIR=~/data1/zmm/output/base2new/train_base/${COMMON_DIR}
+        DIR=~/data1/zmm/output/base2new/test_new/${COMMON_DIR}
+        python train.py \
+        --root ${DATA} \
+        --seed ${SEED} \
+        --trainer ${TRAINER} \
+        --dataset-config-file configs/datasets/${DATASET}.yaml \
+        --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
+        --output-dir ${DIR}\
+        --model-dir ${MODEL_DIR}\
+        --load-epoch 200 \
+        --eval-only \
+        TRAINER.COOP.N_CTX ${NCTX} \
+        TRAINER.COOP.CSC ${CSC} \
+        TRAINER.COOP.CLASS_TOKEN_POSITION ${CTP}\
+        DATASET.NUM_SHOTS ${SHOTS} \
+        DATASET.SUBSAMPLE_CLASSES base
+    done
 done

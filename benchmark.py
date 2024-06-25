@@ -26,7 +26,7 @@
 
 import argparse
 import torch
-import utils
+from tome import utils
 
 from dassl.utils import setup_logger, set_random_seed, collect_env_info
 from dassl.config import get_cfg_default
