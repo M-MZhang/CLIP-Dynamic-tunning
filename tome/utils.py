@@ -10,7 +10,8 @@ from typing import List, Tuple, Union
 
 import torch
 from tqdm import tqdm
-from clip import clip
+
+# from torch.cuda.amp import autocast
 
 
 def benchmark(
@@ -43,28 +44,16 @@ def benchmark(
         device = torch.device(device)
     is_cuda = torch.device(device).type == "cuda"
 
-    model = model.eval().to(device)
+    # model = model.eval().to(device)
+    model.set_model_mode("eval")
+    model.evaluator.reset()
     input = torch.rand(batch_size, *input_size, device=device)
-
-    descriptions = [
-    "a page of text about segmentation",
-    "a facial photo of a tabby cat",
-    "a portrait of an astronaut with the American flag",
-    "a rocket standing on a launchpad",
-    "a red motorcycle standing in a garage",
-    "a person looking at a camera on a tripod",
-    "a black-and-white silhouette of a horse", 
-    "a cup of coffee on a saucer"
-    ]
-    text_tokens = clip.tokenize(["This is " + desc for desc in descriptions]).cuda()
     if use_fp16:
         input = input.half()
 
     warm_up = int(runs * throw_out)
     total = 0
     start = time.time()
-
-    
 
     with torch.cuda.amp.autocast(enabled=use_fp16):
         with torch.no_grad():
@@ -75,7 +64,8 @@ def benchmark(
                     total = 0
                     start = time.time()
 
-                model(input,text_tokens)
+                # model(input)
+                model.model_inference(input) # 按照trainer的调用函数相应修改test的接口
                 total += batch_size
 
     if is_cuda:
