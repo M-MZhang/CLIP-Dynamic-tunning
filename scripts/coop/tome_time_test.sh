@@ -10,7 +10,8 @@ NCTX=16
 CSC=False
 CTP=end
 
-DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+# DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+DATASET="dtd"
 CFG=vit_b16  # config file
 
 for dataset in ${DATASET[@]}

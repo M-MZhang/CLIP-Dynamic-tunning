@@ -81,12 +81,13 @@ def parse_function(*metrics, directory="", args=None, end_signal=None):
             for line in lines:
                 line = line.strip()
 
-                if line == end_signal:
-                    good_to_go = True
+                # if line == end_signal:
+                #     good_to_go = True
 
                 for metric in metrics:
                     match = metric["regex"].search(line)
-                    if match and good_to_go:
+                    # if match and good_to_go:
+                    if match:
                         if "file" not in output:
                             output["file"] = fpath
                         num = float(match.group(1))
@@ -126,9 +127,13 @@ def parse_function(*metrics, directory="", args=None, end_signal=None):
 
 
 def main(args, end_signal):
+    # metric = {
+    #     "name": args.keyword,
+    #     "regex": re.compile(fr"\* {args.keyword}: ([\.\deE+-]+)%"),
+    # }
     metric = {
         "name": args.keyword,
-        "regex": re.compile(fr"\* {args.keyword}: ([\.\deE+-]+)%"),
+        "regex": re.compile(fr"{args.keyword}: ([\.\deE+-]+) im/s"),
     }
 
     if args.multi_exp:
@@ -157,7 +162,7 @@ def main(args, end_signal):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("directory", type=str, default=None, help="path to directory")
+    parser.add_argument("--directory", type=str, default=None, help="path to directory")
     parser.add_argument(
         "--ci95", action="store_true", help=r"compute 95\% confidence interval"
     )
@@ -166,7 +171,7 @@ if __name__ == "__main__":
         "--multi-exp", action="store_true", help="parse multiple experiments"
     )
     parser.add_argument(
-        "--keyword", default="accuracy", type=str, help="which keyword to extract"
+        "--keyword", default="Throughput", type=str, help="which keyword to extract"
     )
     args = parser.parse_args()
 
@@ -174,44 +179,46 @@ if __name__ == "__main__":
     # 需要写入excel表中
     save_dir = "/root/data1/zmm/output"
     save_file_name = save_dir + "/results.xlsx"
-    colums_names = ["caltech101", "oxford_pets", "stanford_cars", "oxford_flowers", "food101", "fgvc_aircraft", "sun397", "dtd", "eurosat", "ucf101"]
-
-    # colums_names = ["ucf101"]
+    colums_names = ["Trainer", "caltech101", "oxford_pets", "stanford_cars", "oxford_flowers", "food101", "fgvc_aircraft", "sun397", "dtd", "eurosat", "ucf101"]
 
     if not os.path.exists(save_file_name):
         wb = openpyxl.Workbook(save_file_name)
-        sheet = wb.create_sheet('ReMaPLe-base2new') # 根据trainer不同需要替换
+        sheet = wb.create_sheet('Comparision-experiments') # 根据trainer不同需要替换
         sheet.append(colums_names)
         wb.save(save_file_name)
     
     train_average_list = []
     test_average_list = []
-    for dataset in colums_names:
-        end_signal = "Finish training"
-    
-        train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/ReMaPLe/vit_b16_c2_ep5_batch4_2ctx"
-        args.directory = train_dictionary
-        results, stds = main(args, end_signal)
-        train_average_list.append(str(round(results['accuracy'],2)) + " % +- " + str(round(stds,2)) + " %")
+    for dataset in colums_names[1:]:
+        
+        # end_signal = "Finish training"
+        # train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/ReMaPLe_3/vit_b16_c2_ep5_batch4_2ctx"
+        # args.directory = train_dictionary
+        # results, stds = main(args, end_signal)
+        # train_average_list.append(str(round(results['accuracy'],2)) + " % +- " + str(round(stds,2)) + " %")
 
         
-        test_dictionary = "/root/data1/zmm/output/base2new/test_new/" + dataset + "/shots_16/ReMaPLe/vit_b16_c2_ep5_batch4_2ctx"
+        test_dictionary = "/root/data1/zmm/output/time_test/" + dataset + "/shots_16/ReMaPLe_3/vit_b16_c2_ep5_batch4_2ctx"
         args.directory = test_dictionary
         # args.test_log:
-        end_signal = "=> result"
+        # end_signal = "=> result"
+        end_signal = "Throughput"
         results, stds = main(args, end_signal)
-        test_average_list.append(str(round(results['accuracy'],2)) + " % +-" + str(round(stds,2)) + " %")
+        test_average_list.append(str(round(results['Throughput'],2)) + " % +-" + str(round(stds,2)) + " %")
     
 
     wb = openpyxl.load_workbook(save_file_name)
-    if "ReMaPLe-base2new" in wb.sheetnames:
-        sheet = wb['ReMaPLe-base2new']
+    if "Comparision-experiments" in wb.sheetnames:
+        sheet = wb['Comparision-experiments']
     else:
-        sheet = wb.create_sheet('ReMaPLe-base2new')
-        sheet = wb['ReMaPLe-base2new']
+        sheet = wb.create_sheet('Comparision-experiments')
+        sheet = wb['Comparision-experiments']
         sheet.append(colums_names)
-    # sheet = wb['ReMaPLe-base2new']
+    # change name for different trainers
+
+    train_average_list = ["ReMaPLe_3"] + train_average_list
+    test_average_list = ["ReMaPLe_3"] + test_average_list
     sheet.append(train_average_list)
     sheet.append(test_average_list)
-    sheet.append([])
+    # sheet.append([])
     wb.save(filename=save_file_name)
