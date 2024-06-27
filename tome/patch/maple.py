@@ -20,20 +20,62 @@ from typing import Callable, List, Optional, Tuple
 
 
 # from timm.models.vision_transformer import Attention, Block, VisionTransformer
-from clip.model import  ResidualAttentionBlock
+from clip.model import ResidualAttentionBlock_MaPLe
 
 from tome.merge import bipartite_soft_matching, merge_source, merge_wavg
 from tome.utils import parse_r
 
 
-class ToMeBlock(ResidualAttentionBlock):
+class ToMeBlock(ResidualAttentionBlock_MaPLe):
     """
     Modifications:
      - Apply ToMe between the attention and mlp blocks
      - Compute and propogate token size and potentially the token sources.
     """
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        
+        # For the first layer, we do not need to add any duplicate, as it is already added
+        # as the shallow version
+        x = inputs[0]
+        compound_prompts_deeper = inputs[1]
+        counter = inputs[2]
+        if not self.first_layer:
+            if len(compound_prompts_deeper) > 0:
+                # This means that deeper compound prompts are turned on
+                # Here it behaves differently for text and visual side
+                # Forward function is same for both
+
+                if not self.text_layer:
+                    # First check if the ith layer needs compound prompts or not
+                    if not (counter > len(compound_prompts_deeper) - 1):
+                        # Remove the outputs produced by learnable tokens of previous layer
+                        prefix = x[0:x.shape[0] - self.compound_prompt_nctx, :, :]
+                        # Create/configure learnable tokens of this layer
+                        visual_context = compound_prompts_deeper[counter]  # extract the correct index
+                        visual_context = visual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
+                        # Add the learnable tokens of this layer with the input, by replacing previous
+                        # layer learnable tokens
+                        x = torch.cat([prefix, visual_context], dim=0) # prompt in vision is in the end
+
+                        # Once done, update the counter, so that the next time, it does not use same learnable tokens
+                        counter += 1
+                else:
+                    # First check if the ith layer needs compound prompts or not
+                    if not (counter > len(compound_prompts_deeper) - 1):
+                        # Appending the learnable tokens in different way
+                        # x -> [77, NCLS, DIM]
+                        # First remove the learnable tokens from previous layer
+                        prefix = x[:1, :, :]
+                        suffix = x[1 + self.compound_prompt_nctx:, :, :]
+                        # Create/configure learnable tokens of this layer
+                        textual_context = compound_prompts_deeper[counter]
+                        textual_context = textual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
+                        # Add the learnable tokens of this layer with the input, replaced by previous
+                        # layer learnable tokens
+                        x = torch.cat([prefix, textual_context, suffix], dim=0)
+                        # Once done, update the counter, so that the next time, it does not use same learnable tokens
+                        counter += 1
         # Note: this is copied from clip.models.vision_transformer.ResidualAttentionBlock with modifications.
         x = self.ln_1(x)
         attn_size = (
@@ -58,7 +100,7 @@ class ToMeBlock(ResidualAttentionBlock):
             x, self._tome_info["size"] = merge_wavg(merge, x.permute(1,0,2), self._tome_info["size"])
 
         x = x.permute(1,0,2) + self.mlp(self.ln_2(x.permute(1,0,2)))
-        return x
+        return [x, compound_prompts_deeper, counter]
 
 def linear(input: torch.Tensor, weight: torch.Tensor, bias: Optional[torch.Tensor] = None) -> torch.Tensor:
     r"""
@@ -195,7 +237,7 @@ def apply_patch(model, trace_source: bool = False, prop_attn: bool = True):
     """
 
     for module in model.image_encoder.modules():
-        if module.__class__.__name__ == "VisionTransformer":
+        if module.__class__.__name__ == "VisionTransformer_MaPLe":
             vit_class = module.__class__
     
             ToMeVisionTransformer = make_tome_class(vit_class)
@@ -216,7 +258,7 @@ def apply_patch(model, trace_source: bool = False, prop_attn: bool = True):
                 module._tome_info["distill_token"] = True
 
             for module_ in module.modules():
-                if isinstance(module_, ResidualAttentionBlock):
+                if isinstance(module_, ResidualAttentionBlock_MaPLe):
                     module_.__class__ = ToMeBlock
                     module_._tome_info = module._tome_info
                 elif isinstance(module_, nn.MultiheadAttention):

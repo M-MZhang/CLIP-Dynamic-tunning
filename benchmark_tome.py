@@ -1,5 +1,6 @@
 import argparse
 import torch
+import tome
 from tome import utils
 
 from dassl.utils import setup_logger, set_random_seed, collect_env_info
@@ -180,6 +181,7 @@ def main(args):
 
     if args.eval_only:
         trainer.load_model(args.model_dir, epoch=args.load_epoch)
+        tome.patch.clip(trainer.model) # change this for different models
         runs = 50
         batch_size = 128
         input_size = [3, 224, 224]

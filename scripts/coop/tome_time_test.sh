@@ -13,16 +13,15 @@ CTP=end
 DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
 CFG=vit_b16  # config file
 
-
-
 for dataset in ${DATASET[@]}
 do
     for SEED in 1 2 3
     do
         COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}/${CFG}_nctx${NCTX}_csc${CSC}_ctp${CTP}/seed${SEED}
+        OUT_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_ToMe/${CFG}_nctx${NCTX}_csc${CSC}_ctp${CTP}/seed${SEED}
         MODEL_DIR=~/data1/zmm/output/base2new/train_base/${COMMON_DIR}
-        DIR=~/data1/zmm/output/time_test/${COMMON_DIR}
-        python benchmark.py \
+        DIR=~/data1/zmm/output/time_test/${OUT_DIR}
+        python benchmark_tome.py \
         --root ${DATA} \
         --seed ${SEED} \
         --trainer ${TRAINER} \

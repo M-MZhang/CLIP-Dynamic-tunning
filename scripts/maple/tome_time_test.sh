@@ -4,29 +4,35 @@
 
 # custom config
 DATA="~/data1/zmm/data"
-TRAINER=CoCoOp
+TRAINER=MaPLe
 
-DATASETS=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+# DATASET=$1
+# SEED=$2
 
-CFG=vit_b16_c4_ep10_batch1_ctxv1
+DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+# DATASET="caltech101"
+SEED=(1 2 3)
+
+CFG=vit_b16_c2_ep5_batch4_2ctx
 SHOTS=16
-LOADEP=10
+LOADEP=5
 SUB=new
 
-for DATASET in ${DATASETS[@]}
-do 
-    for SEED in 1 2 3
-    do 
-        COMMON_DIR=${DATASET}/shots_${SHOTS}/${TRAINER}/${CFG}/seed${SEED}
+for dataset in ${DATASET[@]}
+do
+    for seed in ${SEED[@]}
+    do
+        COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}/${CFG}/seed${seed}
+        OUT_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_ToMe/${CFG}/seed${seed}
         MODEL_DIR=~/data1/zmm/output/base2new/train_base/${COMMON_DIR}
-        DIR=~/data1/zmm/output/time_test/${COMMON_DIR}
+        DIR=~/data1/zmm/output/time_test/${OUT_DIR}
         if [ -d "$DIR" ]; then
             echo "Evaluating model"
             echo "Results are available in ${DIR}. Resuming..."
 
-            python benchmark.py \
+            python benchmark_tome.py \
             --root ${DATA} \
-            --seed ${SEED} \
+            --seed ${seed} \
             --trainer ${TRAINER} \
             --dataset-config-file configs/datasets/${DATASET}.yaml \
             --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
@@ -41,11 +47,11 @@ do
             echo "Evaluating model"
             echo "Runing the first phase job and save the output to ${DIR}"
 
-            python benchmark.py \
+            python benchmark_tome.py \
             --root ${DATA} \
-            --seed ${SEED} \
+            --seed ${seed} \
             --trainer ${TRAINER} \
-            --dataset-config-file configs/datasets/${DATASET}.yaml \
+            --dataset-config-file configs/datasets/${dataset}.yaml \
             --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
             --output-dir ${DIR} \
             --model-dir ${MODEL_DIR} \
