@@ -77,11 +77,10 @@ class ToMeBlock(ResidualAttentionBlock_MaPLe):
                         # Once done, update the counter, so that the next time, it does not use same learnable tokens
                         counter += 1
         # Note: this is copied from clip.models.vision_transformer.ResidualAttentionBlock with modifications.
-        x = self.ln_1(x)
         attn_size = (
                 self._tome_info["size"] if self._tome_info["prop_attn"] else None
             )
-        x_attn, metric = self.attn(x, size=attn_size)
+        x_attn, metric = self.attn(self.ln_1(x), size=attn_size)
         x = x + x_attn
 
         r = self._tome_info["r"].pop(0)
@@ -191,21 +190,28 @@ class ToMeAttention(nn.MultiheadAttention):
         
         if self._qkv_same_embed_dim:
             q, k, v = _in_projection_packed(x, x, x, self.in_proj_weight, self.in_proj_bias) #[N, B, C]
-                
+        if self.num_heads > 1:
+            q = q.contiguous().view(N, B, self.num_heads, self.head_dim).permute(1,2,0,3) #[B, self.num_heads, N, self.head_dim]
+            k = k.contiguous().view(-1, B, self.num_heads, self.head_dim).permute(1,2,0,3)
+            v = v.contiguous().view(-1, B, self.num_heads, self.head_dim).permute(1,2,0,3)
+        k_means = k.mean(1)
         scale = self.head_dim**-0.5
-        attn = (q.permute(1,0,2) * scale @ k.permute(1,2,0)) #[N, B, C]
+        attn = (q @ k.transpose(-2,-1)) * scale
 
         # Apply proportional attention
         if size is not None:
-            attn = attn + size.log()[:, None, :, 0]
-
+            attn = attn + size.log()[:, None, None, :, 0]
+        
         attn = attn.softmax(dim=-1)
+        if self.dropout >0.0:
+            attn = self.dropout(attn, p=self.dropout)
 
-
-        x = (attn @ v.permute(1,0,2)).permute(1,0,2)
+        output = attn @ v 
+        output = output.permute(2,0,1,3).contiguous().view(N, B, C)
+        output = linear(output, self.out_proj.weight, self.out_proj.bias)
 
         # Return k as well here
-        return x, k.mean(1)
+        return output, k_means #[B, N, C]
 
 
 def make_tome_class(transformer_class):

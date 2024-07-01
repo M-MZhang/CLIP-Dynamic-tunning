@@ -127,13 +127,16 @@ def parse_function(*metrics, directory="", args=None, end_signal=None):
 
 
 def main(args, end_signal):
+    # for train-test results
     # metric = {
     #     "name": args.keyword,
     #     "regex": re.compile(fr"\* {args.keyword}: ([\.\deE+-]+)%"),
     # }
+
+    # for time-test results
     metric = {
         "name": args.keyword,
-        "regex": re.compile(fr"{args.keyword}: ([\.\deE+-]+) im/s"),
+        "regex": re.compile(fr"\* {args.keyword}: ([\.\deE+-]+) im/s"),
     }
 
     if args.multi_exp:
@@ -201,8 +204,8 @@ if __name__ == "__main__":
         test_dictionary = "/root/data1/zmm/output/time_test/" + dataset + "/shots_16/ReMaPLe_3/vit_b16_c2_ep5_batch4_2ctx"
         args.directory = test_dictionary
         # args.test_log:
-        # end_signal = "=> result"
-        end_signal = "Throughput"
+        end_signal = "=> result"
+        # end_signal = "Throughput"
         results, stds = main(args, end_signal)
         test_average_list.append(str(round(results['Throughput'],2)) + " % +-" + str(round(stds,2)) + " %")
     

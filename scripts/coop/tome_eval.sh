@@ -21,9 +21,10 @@ do
     for SEED in 1 2 3
     do
         COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}/${CFG}_nctx${NCTX}_csc${CSC}_ctp${CTP}/seed${SEED}
+        OUT_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_ToMe/${CFG}_nctx${NCTX}_csc${CSC}_ctp${CTP}/seed${SEED}
         MODEL_DIR=~/data1/zmm/output/base2new/train_base/${COMMON_DIR}
-        DIR=~/data1/zmm/output/base2new/test_new/${COMMON_DIR}
-        python train.py \
+        DIR=~/data1/zmm/output/base2new/test_new/${OUT_DIR}
+        python benchmark_tome.py \
         --root ${DATA} \
         --seed ${SEED} \
         --trainer ${TRAINER} \

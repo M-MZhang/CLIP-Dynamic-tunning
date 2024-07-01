@@ -56,7 +56,7 @@ def bipartite_soft_matching(
         if distill_token:
             scores[..., :, 0] = -math.inf
 
-        node_max, node_idx = scores.max(dim=-1)
+        node_max, node_idx = scores.max(dim=-1) #[B, a.shape[1]]
         edge_idx = node_max.argsort(dim=-1, descending=True)[..., None]
 
         unm_idx = edge_idx[..., r:, :]  # Unmerged Tokens
@@ -77,7 +77,7 @@ def bipartite_soft_matching(
         if distill_token:
             return torch.cat([unm[:, :1], dst[:, :1], unm[:, 1:], dst[:, 1:]], dim=1)
         else:
-            return torch.cat([unm, dst], dim=1)
+            return torch.cat([unm, dst], dim=1) #会导致无序了？
 
     def unmerge(x: torch.Tensor) -> torch.Tensor:
         unm_len = unm_idx.shape[1]

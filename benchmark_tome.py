@@ -182,6 +182,8 @@ def main(args):
     if args.eval_only:
         trainer.load_model(args.model_dir, epoch=args.load_epoch)
         tome.patch.clip(trainer.model) # change this for different models
+        trainer.test()
+        print("*********************************************************************")
         runs = 50
         batch_size = 128
         input_size = [3, 224, 224]
@@ -193,12 +195,12 @@ def main(args):
             batch_size = batch_size,
             input_size = input_size,
         )
-        print("*********************************************************************")
         print(f"** The throughput of our remaple_3 is:{remaple_throughput} im/s **")
-        # trainer.test()
         return
 
     if not args.no_train:
+        # use tome to change the structure of model
+        tome.patch.clip(trainer.model) # change this for different models
         trainer.train()
 
 
