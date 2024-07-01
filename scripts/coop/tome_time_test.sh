@@ -10,9 +10,9 @@ NCTX=16
 CSC=False
 CTP=end
 
-# DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
-DATASET="dtd"
-CFG=vit_b16  # config file
+DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+# DATASET="dtd"
+CFG=vit_b16_ep50  # config file
 
 for dataset in ${DATASET[@]}
 do
@@ -30,7 +30,7 @@ do
         --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
         --output-dir ${DIR}\
         --model-dir ${MODEL_DIR}\
-        --load-epoch 200 \
+        --load-epoch 50 \
         --eval-only \
         TRAINER.COOP.N_CTX ${NCTX} \
         TRAINER.COOP.CSC ${CSC} \

@@ -181,8 +181,8 @@ def main(args):
 
     if args.eval_only:
         trainer.load_model(args.model_dir, epoch=args.load_epoch)
-        tome.patch.clip(trainer.model) # change this for different models
-        trainer.test()
+        tome.patch.maple(trainer.model) # change this for different models
+        # trainer.test()
         print("*********************************************************************")
         runs = 50
         batch_size = 128
