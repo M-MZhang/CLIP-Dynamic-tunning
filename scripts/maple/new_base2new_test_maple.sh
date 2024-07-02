@@ -9,8 +9,8 @@ TRAINER=MaPLe
 # DATASET=$1
 # SEED=$2
 
-# DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
-DATASET="sun397"
+DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+# DATASET="sun397"
 SEED=(1 2 3)
 
 CFG=vit_b16_c2_ep5_batch4_2ctx
@@ -33,7 +33,7 @@ do
             --root ${DATA} \
             --seed ${seed} \
             --trainer ${TRAINER} \
-            --dataset-config-file configs/datasets/${DATASET}.yaml \
+            --dataset-config-file configs/datasets/${dataset}.yaml \
             --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
             --output-dir ${DIR} \
             --model-dir ${MODEL_DIR} \

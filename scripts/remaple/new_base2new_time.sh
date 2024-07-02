@@ -25,7 +25,7 @@ do
     do
         COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_4/${CFG}/seed${seed}
         MODEL_DIR=~/data1/zmm/output/base2new/train_base/${COMMON_DIR}
-        DIR=~/data1/zmm/output/base2new/test_time_${SUB}/${COMMON_DIR}
+        DIR=~/data1/zmm/output/time_test/${COMMON_DIR}
         if [ -d "$DIR" ]; then
             echo "Evaluating model"
             echo "Results are available in ${DIR}. Resuming..."
@@ -34,7 +34,7 @@ do
             --root ${DATA} \
             --seed ${seed} \
             --trainer ${TRAINER} \
-            --dataset-config-file configs/datasets/${DATASET}.yaml \
+            --dataset-config-file configs/datasets/${dataset}.yaml \
             --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
             --output-dir ${DIR} \
             --model-dir ${MODEL_DIR} \
