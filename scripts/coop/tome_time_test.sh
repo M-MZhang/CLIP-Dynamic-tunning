@@ -26,7 +26,7 @@ do
         --root ${DATA} \
         --seed ${SEED} \
         --trainer ${TRAINER} \
-        --dataset-config-file configs/datasets/${DATASET}.yaml \
+        --dataset-config-file configs/datasets/${dataset}.yaml \
         --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
         --output-dir ${DIR}\
         --model-dir ${MODEL_DIR}\

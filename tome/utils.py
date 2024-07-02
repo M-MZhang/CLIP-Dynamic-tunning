@@ -77,8 +77,7 @@ def benchmark(
     throughput = total / elapsed
 
     if verbose:
-        print("=> results")
-        print(f"* Throughput: {throughput:.2f} im/s")
+        print(f"Throughput: {throughput:.2f} im/s")
 
     return throughput
 

@@ -86,13 +86,13 @@ def parse_function(*metrics, directory="", args=None, end_signal=None):
 
                 for metric in metrics:
                     match = metric["regex"].search(line)
-                    if match and good_to_go:
-                        if match:
-                            if "file" not in output:
-                                output["file"] = fpath
-                            num = float(match.group(1))
-                            name = metric["name"]
-                            output[name] = num
+                    # if match and good_to_go:
+                    if match:
+                        if "file" not in output:
+                            output["file"] = fpath
+                        num = float(match.group(1))
+                        name = metric["name"]
+                        output[name] = num
 
         if output:
             outputs.append(output)
@@ -128,16 +128,16 @@ def parse_function(*metrics, directory="", args=None, end_signal=None):
 
 def main(args, end_signal):
     # for train-test results
-    metric = {
-        "name": args.keyword,
-        "regex": re.compile(fr"\* {args.keyword}: ([\.\deE+-]+)%"),
-    }
-
-    # for time-test results
     # metric = {
     #     "name": args.keyword,
-    #     "regex": re.compile(fr"\* {args.keyword}: ([\.\deE+-]+) im/s"),
+    #     "regex": re.compile(fr"\* {args.keyword}: ([\.\deE+-]+)%"),
     # }
+
+    # for time-test results
+    metric = {
+        "name": args.keyword,
+        "regex": re.compile(fr"{args.keyword}: ([\.\deE+-]+) im/s"),
+    }
 
     if args.multi_exp:
         final_results = defaultdict(list)
@@ -174,7 +174,7 @@ if __name__ == "__main__":
         "--multi-exp", action="store_true", help="parse multiple experiments"
     )
     parser.add_argument(
-        "--keyword", default="accuracy", type=str, help="which keyword to extract"
+        "--keyword", default="Throughput", type=str, help="which keyword to extract"
     )
     args = parser.parse_args()
 
@@ -194,29 +194,19 @@ if __name__ == "__main__":
     test_average_list = []
     tome_test_average_list = []
     for dataset in colums_names[1:]:
-        
-        end_signal = "Finish training"
-        train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/ReMaPLe_4/vit_b16_c2_ep5_batch4_2ctx"
-        args.directory = train_dictionary
-        results, stds = main(args, end_signal)
-        train_average_list.append(str(round(results['accuracy'],2)) + " % +- " + str(round(stds,2)) + " %")
-
-        
-        test_dictionary = "/root/data1/zmm/output/base2new/test_new/" + dataset + "/shots_16/ReMaPLe_4/vit_b16_c2_ep5_batch4_2ctx"
+       
+        test_dictionary = "/root/data1/zmm/output/time_test/" + dataset + "/shots_16/ReMaPLe_3/vit_b16_c2_ep5_batch4_2ctx"
         args.directory = test_dictionary
-        # args.test_log:
-        end_signal = "=> result"
-        # end_signal = "Throughput"
+        end_signal = "Throughput"
         results, stds = main(args, end_signal=end_signal)
-        # test_average_list.append(str(round(results['Throughput'],2)) + " % +-" + str(round(stds,2)) + " %")
-        test_average_list.append(str(round(results['accuracy'],2)) + " % +- " + str(round(stds,2)) + " %")
-
-        # tome_test_dictionary = "/root/data1/zmm/output/base2new/test_new/" + dataset + "/shots_16/ReMaPLe_ToMe/vit_b16_c2_ep5_batch4_2ctx"
+        test_average_list.append(str(round(results['Throughput'],2)) + " % +-" + str(round(stds,2)) + " %")
+        
+        # tome_test_dictionary = "/root/data1/zmm/output/time_test/" + dataset + "/shots_16/MaPLe_ToMe/vit_b16_c2_ep5_batch4_2ctx"
         # args.directory = tome_test_dictionary
         # # args.test_log:
         # end_signal = "=> result"
         # results, stds = main(args, end_signal=end_signal)
-        # tome_test_average_list.append(str(round(results['accuracy'],2)) + " % +- " + str(round(stds,2)) + " %")
+        # tome_test_average_list.append(str(round(results['Throughput'],2)) + " % +- " + str(round(stds,2)) + " %")
     
 
     wb = openpyxl.load_workbook(save_file_name)
@@ -228,10 +218,8 @@ if __name__ == "__main__":
         sheet.append(colums_names)
     
     # change name for different trainers
-    train_average_list = ["ReMaPLe_4_base"] + train_average_list
-    test_average_list = ["ReMaPLe_4_novel"] + test_average_list
-    # tome_test_average_list = ["MaPLe_ToMe_novel"] + tome_test_average_list
-    sheet.append(train_average_list)
+    test_average_list = ["ReMaPLe_3"] + test_average_list
+    # tome_test_average_list = ["MaPLe_ToMe"] + tome_test_average_list
     sheet.append(test_average_list)
     # sheet.append(tome_test_average_list)
     wb.save(filename=save_file_name)
