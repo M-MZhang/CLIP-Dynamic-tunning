@@ -249,7 +249,7 @@ def apply_patch(model, trace_source: bool = False, prop_attn: bool = True):
             ToMeVisionTransformer = make_tome_class(vit_class)
 
             module.__class__ = ToMeVisionTransformer
-            module.r = 2
+            module.r = 8
             module._tome_info = {
                 "r": module.r,
                 "size": None,

@@ -24,7 +24,7 @@ do
     do
         COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}/${CFG}/seed${seed}
         MODEL_DIR=~/data1/zmm/output/base2new/train_base/${COMMON_DIR}
-        OUT_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_ToMe/${CFG}/seed${seed}
+        OUT_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_ToMe/${CFG}_8token/seed${seed}
         DIR=~/data1/zmm/output/base2new/test_${SUB}/${OUT_DIR}
         if [ -d "$DIR" ]; then
             echo "Evaluating model"
