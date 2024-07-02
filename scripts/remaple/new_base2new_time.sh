@@ -23,7 +23,7 @@ for dataset in ${DATASET[@]}
 do
     for seed in ${SEED[@]}
     do
-        COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_3/${CFG}/seed${seed}
+        COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_4/${CFG}/seed${seed}
         MODEL_DIR=~/data1/zmm/output/base2new/train_base/${COMMON_DIR}
         DIR=~/data1/zmm/output/base2new/test_time_${SUB}/${COMMON_DIR}
         if [ -d "$DIR" ]; then

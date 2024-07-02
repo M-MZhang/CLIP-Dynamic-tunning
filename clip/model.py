@@ -312,12 +312,18 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
                     x = torch.cat([prefix, textual_context, suffix], dim=0)
                     # Once done, update the counter, so that the next time, it does not use same learnable tokens
                     counter += 1
-        x = x + self.attention(self.ln_1(x))
+        # 将对于vit端的合并，也放在attn之前，应该在速度上会更快，准确度上不知道怎么变化？
         if len(compound_prompts_deeper) > 0 and (not self.text_layer):
             if not (counter > len(compound_prompts_deeper) - 1):
                 # prune or merge the tokens for vision branch
                 x = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 2)
                 counter += 1
+        x = x + self.attention(self.ln_1(x))
+        # if len(compound_prompts_deeper) > 0 and (not self.text_layer):
+        #     if not (counter > len(compound_prompts_deeper) - 1):
+        #         # prune or merge the tokens for vision branch
+        #         x = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 2)
+        #         counter += 1
         x = x + self.mlp(self.ln_2(x))
         return [x, compound_prompts_deeper, counter]  # return again as a list, so that nn.seq can work
 
