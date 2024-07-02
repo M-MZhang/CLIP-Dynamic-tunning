@@ -336,7 +336,14 @@ def soft_matching(x: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[cal
     n, t1, c = x.shape
     node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) # same shape as scores [batch, n_token, 1], descending by row
     unp_idx = node_idx[..., :scores.shape[1]-r, :]
-    new_metric = x.gather(dim=-2, index= unp_idx) # [batch, x.shape[1]-r, n_channel]
+    p_idx = node_idx[..., scores.shape[1]-r:, :]
+    unp_metric = x.gather(dim=-2, index= unp_idx)
+    p_metric = x.gather(dim=-2, index= p_idx)
+    p_metric = p_metric.mean(1).unsqueeze(1)
+    new_metric = torch.cat([unp_metric, p_metric],dim=1)
+
+
+    # new_metric = x.gather(dim=-2, index= unp_idx) # [batch, x.shape[1]-r, n_channel]
 
     return new_metric.permute(1, 0, 2)
 
