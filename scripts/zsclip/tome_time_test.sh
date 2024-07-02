@@ -35,13 +35,13 @@ for dataset in ${DATASET[@]}
 do
     for seed in ${SEED[@]}
     do
-        COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}/${CFG}/seed${seed}
-        DIR=~/data1/zmm/output/base2new/test_${SUB}/${COMMON_DIR}
+        COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_ToMe/${CFG}/seed${seed}
+        DIR=~/data1/zmm/output/time_test/${COMMON_DIR}
         if [ -d "$DIR" ]; then
             echo "Evaluating model"
             echo "Results are available in ${DIR}. Resuming..."
 
-            python train.py \
+            python benchmark_tome.py \
             --root ${DATA} \
             --seed ${seed} \
             --trainer ${TRAINER} \
@@ -55,7 +55,7 @@ do
             echo "Evaluating model"
             echo "Runing the first phase job and save the output to ${DIR}"
 
-            python train.py \
+            python benchmark_tome.py \
             --root ${DATA} \
             --seed ${seed} \
             --trainer ${TRAINER} \

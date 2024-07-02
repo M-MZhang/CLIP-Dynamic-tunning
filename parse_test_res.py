@@ -195,14 +195,14 @@ if __name__ == "__main__":
     tome_test_average_list = []
     for dataset in colums_names[1:]:
         
-        end_signal = "Finish training"
-        train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/ReMaPLe_4/vit_b16_c2_ep5_batch4_2ctx"
-        args.directory = train_dictionary
-        results, stds = main(args, end_signal)
-        train_average_list.append(str(round(results['accuracy'],2)) + " % +- " + str(round(stds,2)) + " %")
+        # end_signal = "Finish training"
+        # train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/ReMaPLe_4/vit_b16_c2_ep5_batch4_2ctx"
+        # args.directory = train_dictionary
+        # results, stds = main(args, end_signal)
+        # train_average_list.append(str(round(results['accuracy'],2)) + " % +- " + str(round(stds,2)) + " %")
 
         
-        test_dictionary = "/root/data1/zmm/output/base2new/test_new/" + dataset + "/shots_16/ReMaPLe_4/vit_b16_c2_ep5_batch4_2ctx"
+        test_dictionary = "/root/data1/zmm/output/base2new/test_new/" + dataset + "/shots_16/ZeroshotCLIP_ToMe/vit_b16"
         args.directory = test_dictionary
         # args.test_log:
         end_signal = "=> result"
@@ -228,10 +228,10 @@ if __name__ == "__main__":
         sheet.append(colums_names)
     
     # change name for different trainers
-    train_average_list = ["ReMaPLe_4_base"] + train_average_list
-    test_average_list = ["ReMaPLe_4_novel"] + test_average_list
+    # train_average_list = ["ReMaPLe_4_base"] + train_average_list
+    test_average_list = ["ZeroshotCLIP_ToMe"] + test_average_list
     # tome_test_average_list = ["MaPLe_ToMe_novel"] + tome_test_average_list
-    sheet.append(train_average_list)
+    # sheet.append(train_average_list)
     sheet.append(test_average_list)
     # sheet.append(tome_test_average_list)
     wb.save(filename=save_file_name)

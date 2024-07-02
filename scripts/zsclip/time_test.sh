@@ -1,21 +1,3 @@
-# #!/bin/bash
-
-# #cd ../..
-
-# # custom config
-# DATA=/path/to/datasets
-# TRAINER=ZeroshotCLIP
-# DATASET=$1
-# CFG=$2  # rn50, rn101, vit_b32 or vit_b16
-
-# python train.py \
-# --root ${DATA} \
-# --trainer ${TRAINER} \
-# --dataset-config-file configs/datasets/${DATASET}.yaml \
-# --config-file configs/trainers/CoOp/${CFG}.yaml \
-# --output-dir output/${TRAINER}/${CFG}/${DATASET} \
-# --eval-only
-
 #!/bin/bash
 
 #cd ../..
@@ -23,7 +5,6 @@ DATA="~/data1/zmm/data"
 TRAINER=ZeroshotCLIP
 
 DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
-# DATASET="ucf101"
 SEED=(1 2 3)
 
 CFG=vit_b16
@@ -45,7 +26,7 @@ do
             --root ${DATA} \
             --seed ${seed} \
             --trainer ${TRAINER} \
-            --dataset-config-file configs/datasets/${DATASET}.yaml \
+            --dataset-config-file configs/datasets/${dataset}.yaml \
             --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
             --output-dir ${DIR} \
             --eval-only \

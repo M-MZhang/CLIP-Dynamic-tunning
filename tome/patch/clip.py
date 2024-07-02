@@ -200,7 +200,8 @@ def apply_patch(model, trace_source: bool = False, prop_attn: bool = True):
     the shelf. For trianing and for evaluating MAE models off the self set this to be False.
     """
 
-    for module in model.image_encoder.modules():
+    # for module in model.image_encoder.modules(): # for coop/ cocoop
+    for module in model.visual.modules():  # for zsclip
         if module.__class__.__name__ == "VisionTransformer":
             vit_class = module.__class__
     

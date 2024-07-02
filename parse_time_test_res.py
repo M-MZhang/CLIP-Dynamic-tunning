@@ -195,7 +195,7 @@ if __name__ == "__main__":
     tome_test_average_list = []
     for dataset in colums_names[1:]:
        
-        test_dictionary = "/root/data1/zmm/output/time_test/" + dataset + "/shots_16/ReMaPLe_3/vit_b16_c2_ep5_batch4_2ctx"
+        test_dictionary = "/root/data1/zmm/output/time_test/" + dataset + "/shots_16/ReMaPLe_4/vit_b16_c2_ep5_batch4_2ctx"
         args.directory = test_dictionary
         end_signal = "Throughput"
         results, stds = main(args, end_signal=end_signal)
@@ -218,7 +218,7 @@ if __name__ == "__main__":
         sheet.append(colums_names)
     
     # change name for different trainers
-    test_average_list = ["ReMaPLe_3"] + test_average_list
+    test_average_list = ["ReMaPLe_4"] + test_average_list
     # tome_test_average_list = ["MaPLe_ToMe"] + tome_test_average_list
     sheet.append(test_average_list)
     # sheet.append(tome_test_average_list)
