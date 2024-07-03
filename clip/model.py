@@ -316,7 +316,7 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
         if len(compound_prompts_deeper) > 0 and (not self.text_layer):
             if not (counter > len(compound_prompts_deeper) - 1):
                 # prune or merge the tokens for vision branch
-                x = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 2)
+                x = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 8)
                 counter += 1
         x = x + self.attention(self.ln_1(x))
         # if len(compound_prompts_deeper) > 0 and (not self.text_layer):

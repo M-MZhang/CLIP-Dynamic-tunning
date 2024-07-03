@@ -42,7 +42,7 @@ def load_clip_to_cpu(cfg):
                       "vision_depth": 0,
                       "language_depth": 0, "vision_ctx": 0,
                       "language_ctx": 0,
-                      "maple_length": cfg.TRAINER.MAPLE.N_CTX}
+                      "maple_length": cfg.TRAINER.ReMAPLE.N_CTX}
     model = clip.build_model(state_dict or model.state_dict(), design_details)
 
     return model
