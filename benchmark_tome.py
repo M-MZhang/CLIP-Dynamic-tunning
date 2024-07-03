@@ -182,20 +182,20 @@ def main(args):
     if args.eval_only:
         trainer.load_model(args.model_dir, epoch=args.load_epoch)
         tome.patch.maple(trainer.model) # change this for different models
-        trainer.test()
-        # print("*********************************************************************")
-        # runs = 50
-        # batch_size = 128
-        # input_size = [3, 224, 224]
-        # remaple_throughput = utils.benchmark(
-        #     trainer,
-        #     device=device,
-        #     verbose=True,
-        #     runs=runs,
-        #     batch_size = batch_size,
-        #     input_size = input_size,
-        # )
-        # print(f"** The throughput of our ZeroshotCLIP_ToMe is:{remaple_throughput} im/s **")
+        # trainer.test()
+        print("*********************************************************************")
+        runs = 50
+        batch_size = 128
+        input_size = [3, 224, 224]
+        remaple_throughput = utils.benchmark(
+            trainer,
+            device=device,
+            verbose=True,
+            runs=runs,
+            batch_size = batch_size,
+            input_size = input_size,
+        )
+        print(f"** The throughput of our ZeroshotCLIP_ToMe is:{remaple_throughput} im/s **")
         return
 
     if not args.no_train:

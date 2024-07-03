@@ -23,7 +23,7 @@ do
     for seed in ${SEED[@]}
     do
         COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}/${CFG}/seed${seed}
-        OUT_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_ToMe/${CFG}/seed${seed}
+        OUT_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_ToMe/${CFG}_8token/seed${seed}
         MODEL_DIR=~/data1/zmm/output/base2new/train_base/${COMMON_DIR}
         DIR=~/data1/zmm/output/time_test/${OUT_DIR}
         if [ -d "$DIR" ]; then
@@ -34,7 +34,7 @@ do
             --root ${DATA} \
             --seed ${seed} \
             --trainer ${TRAINER} \
-            --dataset-config-file configs/datasets/${DATASET}.yaml \
+            --dataset-config-file configs/datasets/${dataset}.yaml \
             --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
             --output-dir ${DIR} \
             --model-dir ${MODEL_DIR} \
