@@ -324,10 +324,126 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
         x = x + self.mlp(self.ln_2(x))
         return [x, compound_prompts_deeper, counter, loss]  # return again as a list, so that nn.seq can work
 
+class ResidualAttentionBlock_ReMaPLe_text(nn.Module):
+    def __init__(self, d_model: int, n_head: int, attn_mask: torch.Tensor = None, design_details=None,
+                 text_layer=False, i=0):
+        super().__init__()
+
+        self.attn = nn.MultiheadAttention(d_model, n_head)
+        self.ln_1 = LayerNorm(d_model)
+        self.mlp = nn.Sequential(OrderedDict([
+            ("c_fc", nn.Linear(d_model, d_model * 4)),
+            ("gelu", QuickGELU()),
+            ("c_proj", nn.Linear(d_model * 4, d_model))
+        ]))
+        self.ln_2 = LayerNorm(d_model)
+        # For the first iteration i, we do not need to add the learnable parameters here
+        # as it will be added in the beginning, for both text and the vision branch
+        self.text_layer = text_layer
+        self.attn_mask = attn_mask
+        # This must be consistent with the config file prompt
+        self.compound_prompt_nctx = design_details['maple_length']
+        if i == 0:
+            self.first_layer = True
+        else:
+            self.first_layer = False
+
+    def attention(self, x: torch.Tensor):
+        self.attn_mask = self.attn_mask.to(dtype=x.dtype, device=x.device) if self.attn_mask is not None else None
+        return self.attn(x, x, x, need_weights=False, attn_mask=self.attn_mask)[0]
+
+    def forward(self, inputs):
+        # For the first layer, we do not need to add any duplicate, as it is already added
+        # as the shallow version
+        x = inputs[0]
+        compound_prompts_deeper = inputs[1]
+        counter = inputs[2]
+        cls_selector = inputs[3]
+        # if not self.first_layer:
+        if len(compound_prompts_deeper) > 0:
+            # This means that deeper compound prompts are turned on
+            # Here it behaves differently for text and visual side
+            # Forward function is same for both
+            # First check if the ith layer needs compound prompts or not
+            if not (counter > len(compound_prompts_deeper) - 1):
+                # Appending the learnable tokens in different way
+                # x -> [77, NCLS, DIM]
+                # First remove the learnable tokens from previous layer
+                prefix = x[:1, :, :]
+                suffix = x[1 + self.compound_prompt_nctx:, :, :]
+                # Create/configure learnable tokens of this layer
+                textual_context = compound_prompts_deeper[counter]
+                textual_context = textual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
+                # Add the learnable tokens of this layer with the input, replaced by previous
+                # layer learnable tokens
+                x = torch.cat([prefix, textual_context, suffix], dim=0)
+                # Once done, update the counter, so that the next time, it does not use same learnable tokens
+                
+        x = x + self.attention(self.ln_1(x))
+        x = x + self.mlp(self.ln_2(x))
+        if len(compound_prompts_deeper) > 0:
+            # This means that deeper compound prompts are turned on
+            # Here it behaves differently for text and visual side
+            # Forward function is same for both
+            # First check if the ith layer needs compound prompts or not
+            if not (counter > len(compound_prompts_deeper) - 1):
+                cls_selector.append(x[1:1+self.compound_prompt_nctx, :, :].permute(1, 0, 2))
+                counter += 1
+        return [x, compound_prompts_deeper, counter, cls_selector]  # return again as a list, so that nn.seq can work
+
+class ResidualAttentionBlock_ReMaPLe_visual(nn.Module):
+    def __init__(self, d_model: int, n_head: int, attn_mask: torch.Tensor = None, design_details=None,
+                 text_layer=False, i=0):
+        super().__init__()
+
+        self.attn = nn.MultiheadAttention(d_model, n_head)
+        self.ln_1 = LayerNorm(d_model)
+        self.mlp = nn.Sequential(OrderedDict([
+            ("c_fc", nn.Linear(d_model, d_model * 4)),
+            ("gelu", QuickGELU()),
+            ("c_proj", nn.Linear(d_model * 4, d_model))
+        ]))
+        self.ln_2 = LayerNorm(d_model)
+        # For the first iteration i, we do not need to add the learnable parameters here
+        # as it will be added in the beginning, for both text and the vision branch
+        self.text_layer = text_layer
+        self.attn_mask = attn_mask
+        # This must be consistent with the config file prompt
+        self.compound_prompt_nctx = design_details['maple_length']
+        if i == 0:
+            self.first_layer = True
+        else:
+            self.first_layer = False
+
+    def attention(self, x: torch.Tensor):
+        self.attn_mask = self.attn_mask.to(dtype=x.dtype, device=x.device) if self.attn_mask is not None else None
+        return self.attn(x, x, x, need_weights=False, attn_mask=self.attn_mask)[0]
+
+    def forward(self, inputs):
+        # For the first layer, we do not need to add any duplicate, as it is already added
+        # as the shallow version
+        x = inputs[0]
+        compound_prompts_deeper = inputs[1]
+        counter = inputs[2]
+        loss = inputs[3]
+        # if not self.first_layer:
+        if len(compound_prompts_deeper) > 0:
+            # This means that deeper compound prompts are turned on
+            # Here it behaves differently for text and visual side
+            # Forward function is same for both
+            if not (counter > len(compound_prompts_deeper) - 1):
+                # prune or merge the tokens for vision branch
+                x, sparse_metric = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 8)
+                counter += 1
+                loss.append(sparse_metric)
+        x = x + self.attention(self.ln_1(x))
+        x = x + self.mlp(self.ln_2(x))
+        return [x, compound_prompts_deeper, counter, loss]  # return again as a list, so that nn.seq can work
+
 def soft_matching(x: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[callable, callable]:
     metric = x / x.norm(dim=-1, keepdim=True)
     selector = dispacher / dispacher.norm(dim=-1, keepdim=True) #[n_cls, n_ctx, c_dim] n_ctx=1下方才可乘
-    scores = metric @ (selector.squeeze(1).T.half()) # [batch, n_token, n_cls] #这个地方还要出一个loss怎么传到最后？
+    scores = metric @ (selector.squeeze(1).T.half()) # [batch, n_token, n_cls] 
     scores[..., 0, :] = math.inf 
     # scores = scores.squeeze(-1)
     n, t1, c = x.shape
@@ -365,9 +481,15 @@ class Transformer(nn.Module):
                                                                               text_layer, i, design_details)
                                              for i in range(layers)])
         elif current_trainer == 'MaPLe':
-            self.resblocks = nn.Sequential(
-                *[ResidualAttentionBlock_MaPLe(width, heads, attn_mask, design_details, text_layer, i)
-                  for i in range(layers)])
+            if text_layer:
+                self.resblocks = nn.Sequential(
+                    *[ResidualAttentionBlock_ReMaPLe_text(width, heads, attn_mask, design_details, text_layer, i)
+                    for i in range(layers)])
+            else:
+                self.resblocks = nn.Sequential(
+                    *[ResidualAttentionBlock_ReMaPLe_visual(width, heads, attn_mask, design_details, text_layer, i)
+                    for i in range(layers)])
+    
         else:
             # Corresponds to default CoOp or CoCoOp
             assert current_trainer == 'CoOp' or current_trainer == 'CoCoOp'

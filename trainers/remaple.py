@@ -64,6 +64,7 @@ class TextEncoder(nn.Module):
         combined = [x, compound_prompts_deeper_text, 0, []]  # third argument is the counter which denotes depth of prompt
         outputs = self.transformer(combined)
         x = outputs[0]  # extract the x back from here
+        cls_selectors = outputs[3]
         x = x.permute(1, 0, 2)  # LND -> NLD
         x = self.ln_final(x).type(self.dtype)
 
@@ -71,7 +72,7 @@ class TextEncoder(nn.Module):
         # take features from the eot embedding (eot_token is the highest number in each sequence)
         x = x[torch.arange(x.shape[0]), tokenized_prompts.argmax(dim=-1)] @ self.text_projection
 
-        return x
+        return x, cls_selectors
 
 
 class MultiModalPromptLearner(nn.Module):
@@ -125,9 +126,9 @@ class MultiModalPromptLearner(nn.Module):
         #[depth, n_cls, n_ctx, ctx_dim]
 
         # Also make corresponding projection layers, for each prompt
-        single_layer = nn.Linear(ctx_dim, 768)
+        single_layer = nn.Linear(ctx_dim, 768).half()
         self.compound_prompt_projections = _get_clones(single_layer, self.compound_prompts_depth)
-        self.compound_prompt_projections[0] = self.compound_prompt_projections[0].half()
+        # self.compound_prompt_projections[0] = self.compound_prompt_projections[0].half()
         # self.compound_prompt_projections = [self.proj] + self.compound_prompt_projections
 
         classnames = [name.replace("_", " ") for name in classnames]
@@ -184,12 +185,12 @@ class MultiModalPromptLearner(nn.Module):
 
         # Before returning, need to transform
         # prompts to 768 for the visual side
-        visual_deep_prompts = []
-        for index, layer in enumerate(self.compound_prompt_projections):
-            visual_deep_prompts.append(layer(self.compound_prompts_text[index]))
+        # visual_deep_prompts = []
+        # for index, layer in enumerate(self.compound_prompt_projections):
+        #     visual_deep_prompts.append(layer(self.compound_prompts_text[index]))
         # Now the other way around
         # We will project the textual prompts from 512 to 768
-        return prompts, self.compound_prompts_text, visual_deep_prompts   # pass here original, as for visual 768 is required
+        return prompts, self.compound_prompts_text  # pass here original, as for visual 768 is required
 
 
 class CustomCLIP(nn.Module):
@@ -206,8 +207,12 @@ class CustomCLIP(nn.Module):
         tokenized_prompts = self.tokenized_prompts
         logit_scale = self.logit_scale.exp()
 
-        prompts, deep_compound_prompts_text, deep_compound_prompts_vision = self.prompt_learner()
-        text_features = self.text_encoder(prompts, tokenized_prompts, deep_compound_prompts_text)
+        prompts, deep_compound_prompts_text = self.prompt_learner()
+        text_features, deep_compound_cls_selectors = self.text_encoder(prompts, tokenized_prompts, deep_compound_prompts_text)
+        
+        deep_compound_prompts_vision = [] 
+        for index, layer in enumerate(self.prompt_learner.compound_prompt_projections): #[n_layer, n_cls, n_ctx, d_ctx]
+            deep_compound_prompts_vision.append(layer(deep_compound_cls_selectors[index]))
         image_features, local_loss = self.image_encoder(image.type(self.dtype), deep_compound_prompts_vision)
 
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
