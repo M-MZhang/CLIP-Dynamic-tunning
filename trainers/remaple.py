@@ -61,7 +61,7 @@ class TextEncoder(nn.Module):
         x = prompts + self.positional_embedding.type(self.dtype)
         x = x.permute(1, 0, 2)  # NLD -> LND
         # Pass as the list, as nn.sequential cannot process multiple arguments in the forward pass
-        combined = [x, compound_prompts_deeper_text, 0]  # third argument is the counter which denotes depth of prompt
+        combined = [x, compound_prompts_deeper_text, 0, []]  # third argument is the counter which denotes depth of prompt
         outputs = self.transformer(combined)
         x = outputs[0]  # extract the x back from here
         x = x.permute(1, 0, 2)  # LND -> NLD
@@ -110,18 +110,19 @@ class MultiModalPromptLearner(nn.Module):
         # Linear layer so that the tokens will project to 512 and will be initialized from 768
         self.proj = nn.Linear(ctx_dim, 768) 
         self.proj.half()
-        self.ctx = nn.Parameter(ctx_vectors)
+        self.ctx = nn.Parameter(ctx_vectors) #增加类别相关的token
         # These below parameters related to the shared prompts
         # Define the compound prompts for the deeper layers
 
         # Minimum can be 1, which defaults to shallow MaPLe
         # compound prompts by all randomly
-        self.compound_prompts_text = [nn.Parameter(torch.empty(n_ctx, 512))
+        self.compound_prompts_text = [nn.Parameter(torch.empty(n_ctx, ctx_dim))
                                                       for _ in range(self.compound_prompts_depth-1)]
         for single_para in self.compound_prompts_text:
             nn.init.normal_(single_para, std=0.02)
         
-        self.compound_prompts_text = nn.ParameterList([self.ctx] + self.compound_prompts_text)
+        self.compound_prompts_text = nn.ParameterList(x.unsqueeze(0).expand(n_cls,n_ctx,ctx_dim) for x in ([self.ctx] + self.compound_prompts_text))
+        #[depth, n_cls, n_ctx, ctx_dim]
 
         # Also make corresponding projection layers, for each prompt
         single_layer = nn.Linear(ctx_dim, 768)
@@ -207,14 +208,15 @@ class CustomCLIP(nn.Module):
 
         prompts, deep_compound_prompts_text, deep_compound_prompts_vision = self.prompt_learner()
         text_features = self.text_encoder(prompts, tokenized_prompts, deep_compound_prompts_text)
-        image_features = self.image_encoder(image.type(self.dtype), deep_compound_prompts_vision)
+        image_features, local_loss = self.image_encoder(image.type(self.dtype), deep_compound_prompts_vision)
 
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         logits = logit_scale * image_features @ text_features.t()
 
         if self.prompt_learner.training:
-            return F.cross_entropy(logits, label)
+            local_loss = [F.cross_entropy(_, label) for _ in local_loss]
+            return F.cross_entropy(logits, label) + sum(local_loss)/len(local_loss) #加上局部的loss
 
         return logits
 

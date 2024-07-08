@@ -291,6 +291,7 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
         x = inputs[0]
         compound_prompts_deeper = inputs[1]
         counter = inputs[2]
+        loss = inputs[3]
         # if not self.first_layer:
         if len(compound_prompts_deeper) > 0:
             # This means that deeper compound prompts are turned on
@@ -313,32 +314,40 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
                     # Once done, update the counter, so that the next time, it does not use same learnable tokens
                     counter += 1
         # 将对于vit端的合并，也放在attn之前，应该在速度上会更快，准确度上不知道怎么变化？
-        if len(compound_prompts_deeper) > 0 and (not self.text_layer):
-            if not (counter > len(compound_prompts_deeper) - 1):
-                # prune or merge the tokens for vision branch
-                x = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 8)
-                counter += 1
+            if  not self.text_layer:
+                if not (counter > len(compound_prompts_deeper) - 1):
+                    # prune or merge the tokens for vision branch
+                    x, sparse_metric = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 8)
+                    counter += 1
+                    loss.append(sparse_metric)
         x = x + self.attention(self.ln_1(x))
-        # if len(compound_prompts_deeper) > 0 and (not self.text_layer):
-        #     if not (counter > len(compound_prompts_deeper) - 1):
-        #         # prune or merge the tokens for vision branch
-        #         x = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 2)
-        #         counter += 1
         x = x + self.mlp(self.ln_2(x))
-        return [x, compound_prompts_deeper, counter]  # return again as a list, so that nn.seq can work
+        return [x, compound_prompts_deeper, counter, loss]  # return again as a list, so that nn.seq can work
 
 def soft_matching(x: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[callable, callable]:
     metric = x / x.norm(dim=-1, keepdim=True)
-    selector = dispacher / dispacher.norm(dim=-1, keepdim=True) #
-    scores = metric @ selector.T.half() # [batch, n_token, 1]
+    selector = dispacher / dispacher.norm(dim=-1, keepdim=True) #[n_cls, n_ctx, c_dim] n_ctx=1下方才可乘
+    scores = metric @ (selector.squeeze(1).T.half()) # [batch, n_token, n_cls] #这个地方还要出一个loss怎么传到最后？
     scores[..., 0, :] = math.inf 
-    scores = scores.squeeze(-1)
+    # scores = scores.squeeze(-1)
     n, t1, c = x.shape
-    node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) # same shape as scores [batch, n_token, 1], descending by row
-    unp_idx = node_idx[..., :scores.shape[1]-r, :]
+    node_idx = scores.argsort(dim=-2, descending=True) # same shape as scores [batch, n_token, n_cls], descending by column
+    # unp_idx = node_idx[..., :scores.shape[1]-r, :]
+    sparse_idx = node_idx[:,1:4,:] # 取前三个
+    sparse_metric = scores.gather(dim=-2, index=sparse_idx) #[batch, k, n_cls]
+    sparse_metric = sparse_metric.mean(1) # 按行取平均 [batch, n_cls]
+    _, selector_idx = sparse_metric.max(dim=-1, keepdim=True) #[batch, 1]
+    selector_idx = selector_idx.unsqueeze(1).expand(n,t1,1) #[batch, n_token, 1]
+    # use specific selector to match different img
+    sim_scores = scores.gather(dim=-1, index=selector_idx) #[batch, n_token, 1]
+    sim_idx = sim_scores.argsort(dim=-2, descending=True).expand(n, t1, c)  #[batch, n_token, c_dim]
+    unp_idx = sim_idx[..., :sim_scores.shape[1]-r, :]
+    # calculate the similarity
+    # sim_scores = metric @ specific_selector
+    
     new_metric = x.gather(dim=-2, index= unp_idx) # [batch, x.shape[1]-r, n_channel]
 
-    return new_metric.permute(1, 0, 2)
+    return new_metric.permute(1, 0, 2), sparse_metric
 
 class Transformer(nn.Module):
     def __init__(self, width: int, layers: int, heads: int, attn_mask: torch.Tensor = None, prompts_needed=0,
@@ -473,8 +482,9 @@ class VisionTransformer_MaPLe(nn.Module):
 
         x = x.permute(1, 0, 2)  # NLD -> LND
         # Again combine the inputs, so nn.sequential can work
-        outputs = self.transformer([x, compound_deeper_prompts, 0])  # third argument is counter
+        outputs = self.transformer([x, compound_deeper_prompts, 0, []])  # third argument is counter, forth is local loss
         x = outputs[0]
+        local_loss = outputs[3]
         x = x.permute(1, 0, 2)  # LND -> NLD    
 
         x = self.ln_post(x[:, 0, :])
@@ -482,7 +492,7 @@ class VisionTransformer_MaPLe(nn.Module):
         if self.proj is not None:
             x = x @ self.proj
 
-        return x
+        return x, local_loss
 
 
 class CLIP(nn.Module):
