@@ -312,12 +312,6 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
                     x = torch.cat([prefix, textual_context, suffix], dim=0)
                     # Once done, update the counter, so that the next time, it does not use same learnable tokens
                     counter += 1
-        # 将对于vit端的合并，也放在attn之前，应该在速度上会更快，准确度上不知道怎么变化？
-        if len(compound_prompts_deeper) > 0 and (not self.text_layer):
-            if not (counter > len(compound_prompts_deeper) - 1):
-                # prune or merge the tokens for vision branch
-                x = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 8)
-                counter += 1
         x = x + self.attention(self.ln_1(x))
         # if len(compound_prompts_deeper) > 0 and (not self.text_layer):
         #     if not (counter > len(compound_prompts_deeper) - 1):
@@ -325,6 +319,12 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
         #         x = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 2)
         #         counter += 1
         x = x + self.mlp(self.ln_2(x))
+        # 对进入下一个block的输入进行prune，意为已经被提取过的信息，可以被删除掉
+        if len(compound_prompts_deeper) > 0 and (not self.text_layer):
+            if not (counter > len(compound_prompts_deeper) - 1):
+                # prune or merge the tokens for vision branch
+                x = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 8)
+                counter += 1
         return [x, compound_prompts_deeper, counter]  # return again as a list, so that nn.seq can work
 
 def soft_matching(x: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[callable, callable]:
@@ -335,8 +335,11 @@ def soft_matching(x: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[cal
     scores = scores.squeeze(-1)
     n, t1, c = x.shape
     node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) # same shape as scores [batch, n_token, 1], descending by row
-    unp_idx = node_idx[..., :scores.shape[1]-r, :]
+    # unp_idx = node_idx[..., :scores.shape[1]-r, :]
+    # 将相似度高的去除掉
+    unp_idx = node_idx[..., 1+r:, :]
     new_metric = x.gather(dim=-2, index= unp_idx) # [batch, x.shape[1]-r, n_channel]
+    new_metric = torch.cat([x[:,0,:].unsqueeze(1), new_metric],dim=1)
 
     return new_metric.permute(1, 0, 2)
 
