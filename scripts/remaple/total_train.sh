@@ -13,7 +13,7 @@ DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "
 # DATASET="sun397"
 SEED=(1 2 3)
 
-CFG=vit_b16_c2_ep50_batch4_2ctx
+CFG=vit_b16_c2_ep200_batch256_1ctx_adam
 SHOTS=16
 
 for dataset in ${DATASET[@]}
