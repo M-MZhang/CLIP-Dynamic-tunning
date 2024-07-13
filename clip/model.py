@@ -307,7 +307,8 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
                     suffix = x[1 + self.compound_prompt_nctx:, :, :]
                     # Create/configure learnable tokens of this layer
                     textual_context = compound_prompts_deeper[counter]
-                    textual_context = textual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
+                    textual_context = textual_context.unsqueeze(1).permute(1, 0, 2).half()
+                    # textual_context = textual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
                     # Add the learnable tokens of this layer with the input, replaced by previous
                     # layer learnable tokens
                     x = torch.cat([prefix, textual_context, suffix], dim=0)
@@ -326,8 +327,8 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
 
 def soft_matching(x: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[callable, callable]:
     metric = x / x.norm(dim=-1, keepdim=True)
-    selector = dispacher / dispacher.norm(dim=-1, keepdim=True) #[n_cls, n_ctx, c_dim] n_ctx=1下方才可乘
-    scores = metric @ (selector.squeeze(1).T.half()) # [batch, n_token, n_cls] #这个地方还要出一个loss怎么传到最后？
+    selector = dispacher / dispacher.norm(dim=-1, keepdim=True) #[n_cls, c_dim] n_ctx=1下方才可乘
+    scores = metric @ (selector.T.half()) # [batch, n_token, n_cls] #这个地方还要出一个loss怎么传到最后？
     scores[..., 0, :] = math.inf 
     # scores = scores.squeeze(-1)
     n, t1, c = x.shape
@@ -347,7 +348,7 @@ def soft_matching(x: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[cal
     
     new_metric = x.gather(dim=-2, index= unp_idx) # [batch, x.shape[1]-r, n_channel]
 
-    return new_metric.permute(1, 0, 2), sparse_metric
+    return new_metric.permute(1, 0, 2), sparse_metric #[batch, n_cls]
 
 class Transformer(nn.Module):
     def __init__(self, width: int, layers: int, heads: int, attn_mask: torch.Tensor = None, prompts_needed=0,

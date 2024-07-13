@@ -97,10 +97,11 @@ class MultiModalPromptLearner(nn.Module):
             with torch.no_grad():
                 embedding = clip_model.token_embedding(prompt).type(dtype)
             ctx_vectors = embedding[0, 1: 1 + n_ctx, :]
+            ctx_vectors = torch.stack([copy.deepcopy(ctx_vectors) for _ in range(n_cls)]).squeeze(1)
             prompt_prefix = ctx_init
         else:
             # random initialization
-            ctx_vectors = torch.empty(n_ctx, ctx_dim, dtype=dtype)
+            ctx_vectors = torch.empty(n_cls, ctx_dim, dtype=dtype)
             nn.init.normal_(ctx_vectors, std=0.02)
             prompt_prefix = " ".join(["X"] * n_ctx)
         print('MaPLe design: Multi-modal Prompt Learning')
@@ -116,12 +117,12 @@ class MultiModalPromptLearner(nn.Module):
 
         # Minimum can be 1, which defaults to shallow MaPLe
         # compound prompts by all randomly
-        self.compound_prompts_text = [nn.Parameter(torch.empty(n_ctx, ctx_dim))
+        self.compound_prompts_text = [nn.Parameter(torch.empty(n_cls, ctx_dim))
                                                       for _ in range(self.compound_prompts_depth-1)]
         for single_para in self.compound_prompts_text:
             nn.init.normal_(single_para, std=0.02)
         
-        self.compound_prompts_text = nn.ParameterList(x.unsqueeze(0).expand(n_cls,n_ctx,ctx_dim) for x in ([self.ctx] + self.compound_prompts_text))
+        self.compound_prompts_text = nn.ParameterList([self.ctx] + self.compound_prompts_text)
         #[depth, n_cls, n_ctx, ctx_dim]
 
         # Also make corresponding projection layers, for each prompt
@@ -176,7 +177,7 @@ class MultiModalPromptLearner(nn.Module):
         ctx = self.ctx
 
         if ctx.dim() == 2:
-            ctx = ctx.unsqueeze(0).expand(self.n_cls, -1, -1)
+            ctx = ctx.unsqueeze(1).expand(self.n_cls, self.n_ctx, -1)
 
         prefix = self.token_prefix
         suffix = self.token_suffix
@@ -215,7 +216,7 @@ class CustomCLIP(nn.Module):
         logits = logit_scale * image_features @ text_features.t()
 
         if self.prompt_learner.training:
-            local_loss = [F.cross_entropy(_, label) for _ in local_loss]
+            local_loss = [F.cross_entropy(logit_scale * _, label) for _ in local_loss]
             return F.cross_entropy(logits, label) + sum(local_loss)/len(local_loss) #加上局部的loss
 
         return logits

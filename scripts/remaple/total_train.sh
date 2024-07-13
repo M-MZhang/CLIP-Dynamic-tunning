@@ -9,18 +9,18 @@ TRAINER=ReMaPLe
 # DATASET=$1
 # SEED=$2
 
-DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
-# DATASET="sun397"
+# DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+DATASET=("stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
 SEED=(1 2 3)
 
-CFG=vit_b16_c2_ep200_batch256_1ctx_adam
+CFG=vit_b16_c2_ep50_batch4_2ctx
 SHOTS=16
 
 for dataset in ${DATASET[@]}
 do
     for seed in ${SEED[@]}
     do
-        DIR=~/data1/zmm/output/total/train/${dataset}/shots_${SHOTS}/${TRAINER}_6/${CFG}_8token/seed${seed}
+        DIR=~/data1/zmm/output/total/train/${dataset}/shots_${SHOTS}/${TRAINER}_6/${CFG}_8token_new/seed${seed}
         if [ -d "$DIR" ]; then
             echo "Results are available in ${DIR}. Resuming..."
             python train.py \

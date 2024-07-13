@@ -9,22 +9,22 @@ TRAINER=ReMaPLe
 # DATASET=$1
 # SEED=$2
 
-# DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
-DATASET="ucf101"
+DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
 SEED=(1 2 3)
 
-CFG=vit_b16_c2_ep5_batch4_2ctx
+
+CFG=vit_b16_c2_ep200_batch256_1ctx_adam
 SHOTS=16
-LOADEP=5
-SUB=new
+LOADEP=200
+SUB=all
 
 for dataset in ${DATASET[@]}
 do
     for seed in ${SEED[@]}
     do
-        COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}/${CFG}/seed${seed}
-        MODEL_DIR=~/data1/zmm/output/base2new/train_base/${COMMON_DIR}
-        DIR=~/data1/zmm/output/base2new/test_${SUB}/${COMMON_DIR}
+        COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_6/${CFG}_8token/seed${seed}
+        MODEL_DIR=~/data1/zmm/output/total/train/${COMMON_DIR}
+        DIR=~/data1/zmm/output/total/test/${COMMON_DIR}
         if [ -d "$DIR" ]; then
             echo "Evaluating model"
             echo "Results are available in ${DIR}. Resuming..."
@@ -33,7 +33,7 @@ do
             --root ${DATA} \
             --seed ${seed} \
             --trainer ${TRAINER} \
-            --dataset-config-file configs/datasets/${DATASET}.yaml \
+            --dataset-config-file configs/datasets/${dataset}.yaml \
             --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
             --output-dir ${DIR} \
             --model-dir ${MODEL_DIR} \
