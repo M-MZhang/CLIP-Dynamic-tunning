@@ -179,6 +179,19 @@ def main(args):
     if args.eval_only:
         trainer.load_model(args.model_dir, epoch=args.load_epoch)
         trainer.test()
+        runs = 50
+        batch_size = 128
+        input_size = [3, 224, 224]
+        remaple_throughput = utils.benchmark(
+            trainer,
+            device=device,
+            verbose=True,
+            runs=runs,
+            batch_size = batch_size,
+            input_size = input_size,
+        )
+        print("*********************************************************************")
+        print(f"** The throughput of our remaple_3 is:{remaple_throughput} im/s **")
         return
 
     if not args.no_train:
