@@ -13,16 +13,16 @@ DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "
 SEED=(1 2 3)
 
 
-CFG=vit_b16_c2_ep200_batch256_1ctx_adam
+CFG=vit_b16_c2_ep50_batch4_2ctx
 SHOTS=16
-LOADEP=200
+LOADEP=50
 SUB=all
 
 for dataset in ${DATASET[@]}
 do
     for seed in ${SEED[@]}
     do
-        COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_6/${CFG}_8token/seed${seed}
+        COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_6/${CFG}_8token_new/seed${seed}
         MODEL_DIR=~/data1/zmm/output/total/train/${COMMON_DIR}
         DIR=~/data1/zmm/output/total/test/${COMMON_DIR}
         if [ -d "$DIR" ]; then

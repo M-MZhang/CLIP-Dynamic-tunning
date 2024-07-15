@@ -191,7 +191,7 @@ def main(args):
             input_size = input_size,
         )
         print("*********************************************************************")
-        print(f"** The throughput of our remaple_3 is:{remaple_throughput} im/s **")
+        print(f"** The throughput of our remaple_6 is:{remaple_throughput} im/s **")
         return
 
     if not args.no_train:
