@@ -1,5 +1,6 @@
 import argparse
 import torch
+import utils
 
 from dassl.utils import setup_logger, set_random_seed, collect_env_info
 from dassl.config import get_cfg_default
@@ -169,6 +170,7 @@ def main(args):
 
     if torch.cuda.is_available() and cfg.USE_CUDA:
         torch.backends.cudnn.benchmark = True
+        device = 'cuda:0'
 
     print_args(args, cfg)
     print("Collecting env info ...")
