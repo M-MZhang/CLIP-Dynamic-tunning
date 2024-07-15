@@ -1,0 +1,40 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "remaple",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "--root",
+                "~/data1/zmm/data",
+                "--seed",
+                "1",
+                "--trainer",
+                "ReMaPLe",
+                "--dataset-config-file",
+                "./configs/datasets/eurosat.yaml",
+                "--config-file",
+                "./configs/trainers/ReMaPLe/vit_b16_c2_ep5_batch65_2ctx.yaml",
+                "--output-dir",
+                "../clip_dynamic-output/total/train/eurosat/shots_16/ReMaPLe_6/vit_b16_c2_ep5_batch64_2ctx_8token/seed1",
+                "DATASET.NUM_SHOTS",
+                "16",
+                "DATASET.SUBSAMPLE_CLASSES",
+                "all",
+            ],
+        },
+    ]
+}
