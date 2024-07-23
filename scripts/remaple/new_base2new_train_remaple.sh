@@ -20,7 +20,7 @@ for dataset in ${DATASET[@]}
 do
     for seed in ${SEED[@]}
     do
-        DIR=~/data1/zmm/output/base2new/train_base/${dataset}/shots_${SHOTS}/${TRAINER}_3/${CFG}/seed${seed}
+        DIR=~/data1/zmm/output/base2new/train_base/${dataset}/shots_${SHOTS}/${TRAINER}_3_1/${CFG}/seed${seed}
         if [ -d "$DIR" ]; then
             echo "Results are available in ${DIR}. Resuming..."
             python train.py \

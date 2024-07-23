@@ -157,7 +157,7 @@ def main(args, end_signal):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("directory", type=str, default=None, help="path to directory")
+    parser.add_argument("--directory", type=str, default=None, help="path to directory")
     parser.add_argument(
         "--ci95", action="store_true", help=r"compute 95\% confidence interval"
     )
@@ -180,7 +180,7 @@ if __name__ == "__main__":
 
     if not os.path.exists(save_file_name):
         wb = openpyxl.Workbook(save_file_name)
-        sheet = wb.create_sheet('ReMaPLe-base2new') # 根据trainer不同需要替换
+        sheet = wb.create_sheet('Comparision-experiments-new') # 根据trainer不同需要替换
         sheet.append(colums_names)
         wb.save(save_file_name)
     
@@ -189,31 +189,30 @@ if __name__ == "__main__":
     for dataset in colums_names:
         end_signal = "Finish training"
     
-        train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/ReMaPLe_3/vit_b16_c2_ep5_batch4_2ctx"
+        train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/ReMaPLe_3_1/vit_b16_c2_ep5_batch4_2ctx"
         args.directory = train_dictionary
         results, stds = main(args, end_signal)
-        train_average_list.append(str(round(results['accuracy'],2)) + " % +- " + str(round(stds,2)) + " %")
+        train_average_list.append(str(round(results['accuracy'],2)) + " %")
 
         
-        test_dictionary = "/root/data1/zmm/output/base2new/test_new/" + dataset + "/shots_16/ReMaPLe_3/vit_b16_c2_ep5_batch4_2ctx"
+        test_dictionary = "/root/data1/zmm/output/base2new/test_new/" + dataset + "/shots_16/ReMaPLe_3_1/vit_b16_c2_ep5_batch4_2ctx"
         args.directory = test_dictionary
         # args.test_log:
         end_signal = "=> result"
         results, stds = main(args, end_signal)
-        test_average_list.append(str(round(results['accuracy'],2)) + " % +-" + str(round(stds,2)) + " %")
+        test_average_list.append(str(round(results['accuracy'],2)) + " %")
     
 
     wb = openpyxl.load_workbook(save_file_name)
-    if "ReMaPLe-base2new" in wb.sheetnames:
-        sheet = wb['ReMaPLe-base2new']
+    if "Comparision-experiments-new" in wb.sheetnames:
+        sheet = wb['Comparision-experiments-new']
     else:
-        sheet = wb.create_sheet('ReMaPLe-base2new')
-        sheet = wb['ReMaPLe-base2new']
+        sheet = wb.create_sheet('Comparision-experiments-new')
+        sheet = wb['Comparision-experiments-new']
         sheet.append(colums_names)
     # sheet = wb['ReMaPLe-base2new']
-    comment = ' '
-    train_average_list.append(comment)
+    train_average_list = ['ReMaPLe_3_1_0token'] + train_average_list
+    test_average_list = ['ReMaPLe_3_1_0token'] + test_average_list
     sheet.append(train_average_list)
     sheet.append(test_average_list)
-    sheet.append([])
     wb.save(filename=save_file_name)
