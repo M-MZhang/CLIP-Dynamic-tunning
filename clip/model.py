@@ -328,13 +328,14 @@ def soft_matching(x: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[cal
     selector = dispacher / dispacher.norm(dim=-1, keepdim=True) #
     scores = metric @ selector.T.half() # [batch, n_token, 1]
     scores[..., 0, :] = math.inf 
-    scores = scores.squeeze(-1)
+    scores = scores.mean(-1) #[batch, n_token]
     n, t1, c = x.shape
-    node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) # same shape as scores [batch, n_token, 1], descending by row
+    # node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) # same shape as scores [batch, n_token, 1], descending by row
+    node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) #[batch, t1, c]
     sparse_idx = node_idx[:,1:4,0] # 取前三个
     sparse_metric = scores.gather(dim=-1, index=sparse_idx) #[batch, k]
-    sparse_metric = sparse_metric.mean(0) # 按行取平均 [batch, n_cls] relevance
-    local_loss = (1-sparse_metric).mean(0)
+    sparse_metric = sparse_metric.mean() # 取所有平均
+    local_loss = 1-sparse_metric
     unp_idx = node_idx[..., :scores.shape[1]-r, :]
     new_metric = x.gather(dim=-2, index= unp_idx) # [batch, x.shape[1]-r, n_channel]
 

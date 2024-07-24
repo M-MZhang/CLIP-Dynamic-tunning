@@ -189,13 +189,13 @@ if __name__ == "__main__":
     for dataset in colums_names:
         end_signal = "Finish training"
     
-        train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/ReMaPLe_3_1/vit_b16_c2_ep5_batch4_2ctx"
+        train_dictionary = "/root/data1/zmm/output/base2new/train_base/" + dataset + "/shots_16/ReMaPLe_3_1/vit_b16_c2_ep20_batch4_1ctx"
         args.directory = train_dictionary
         results, stds = main(args, end_signal)
         train_average_list.append(str(round(results['accuracy'],2)) + " %")
 
         
-        test_dictionary = "/root/data1/zmm/output/base2new/test_new/" + dataset + "/shots_16/ReMaPLe_3_1/vit_b16_c2_ep5_batch4_2ctx"
+        test_dictionary = "/root/data1/zmm/output/base2new/test_new/" + dataset + "/shots_16/ReMaPLe_3_1/vit_b16_c2_ep20_batch4_1ctx"
         args.directory = test_dictionary
         # args.test_log:
         end_signal = "=> result"
