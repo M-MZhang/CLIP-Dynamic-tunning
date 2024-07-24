@@ -14,9 +14,9 @@ DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "
 SEED=(1 2 3)
 # SEED=1
 
-CFG=vit_b16_c2_ep20_batch4_1ctx
+CFG=vit_b16_c2_ep5_batch4_2ctx
 SHOTS=16
-LOADEP=20
+LOADEP=5
 SUB=new
 
 for dataset in ${DATASET[@]}
