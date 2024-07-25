@@ -9,7 +9,8 @@ TRAINER=ReMaPLe
 # DATASET=$1
 # SEED=$2
 
-DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+# DATASET=("caltech101" "oxford_pets" "stanford_cars" "oxford_flowers" "food101" "fgvc_aircraft" "sun397" "dtd" "eurosat" "ucf101")
+DATASET=("fgvc_aircraft" "dtd" "eurosat" "ucf101")
 # DATASET="ucf101"
 SEED=(1 2 3)
 # SEED=1
