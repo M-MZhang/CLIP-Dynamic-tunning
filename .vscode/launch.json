@@ -1,0 +1,86 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            // Use IntelliSense to learn about possible attributes.
+            // Hover to view descriptions of existing attributes.
+            // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+            "version": "0.2.0",
+            "configurations": [
+                {
+                    "name": "Python Debugger: Current File",
+                    "type": "debugpy",
+                    "request": "launch",
+                    "program": "${file}",
+                    "console": "integratedTerminal"
+                },
+                {
+                    "name": "base2new",
+                    "type": "debugpy",
+                    "request": "launch",
+                    "program": "${file}",
+                    "console": "integratedTerminal",
+                    "args": [
+                        "--root",
+                        "../data",
+                        "--seed",
+                        "1",
+                        "--trainer",
+                        "ReMaPLe",
+                        "--dataset-config-file",
+                        "./configs/datasets/fgvc_aircraft.yaml",
+                        "--config-file",
+                        "./configs/trainers/ReMaPLe/vit_b16_c2_ep5_batch4_1ctx.yaml",
+                        "--output-dir",
+                        "../clip_dynamic-output/base2new/train_base/fgvc_aircraft/shots_16/ReMaPLe_3_4/vit_b16_c2_ep5_batch4_1ctx_2/seed1",
+                        "DATASET.NUM_SHOTS",
+                        "16",
+                        "DATASET.SUBSAMPLE_CLASSES",
+                        "base",
+                    ],
+                    // "justMyCode": false,
+                },
+                {
+                    "name": "base2new_test",
+                    "type": "debugpy",
+                    "request": "launch",
+                    "program": "${file}",
+                    "console": "integratedTerminal",
+                    "args": [
+                        "--root",
+                        "../data",
+                        "--seed",
+                        "1",
+                        "--trainer",
+                        "ReMaPLe",
+                        "--dataset-config-file",
+                        "./configs/datasets/fgvc_aircraft.yaml",
+                        "--config-file",
+                        "./configs/trainers/ReMaPLe/vit_b16_c2_ep5_batch4_1ctx.yaml",
+                        "--output-dir",
+                        "../clip_dynamic-output/base2new/test_new/fgvc_aircraft/shots_16/ReMaPLe_3_4/vit_b16_c2_ep5_batch4_1ctx_2/seed1",
+                        "--model-dir",
+                        "../clip_dynamic-output/base2new/train_base/fgvc_aircraft/shots_16/ReMaPLe_3_4/vit_b16_c2_ep5_batch4_1ctx_2/seed1",
+                        "--load-epoch",
+                        "5",
+                        "--eval-only",
+                        "DATASET.NUM_SHOTS",
+                        "16",
+                        "DATASET.SUBSAMPLE_CLASSES",
+                        "new",
+                    ]
+                },
+            ]
+        }
+    ]
+}
