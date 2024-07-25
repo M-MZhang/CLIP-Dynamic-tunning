@@ -15,7 +15,7 @@ DATASET=("fgvc_aircraft" "dtd" "eurosat" "ucf101")
 SEED=(1 2 3)
 # SEED=1
 
-CFG=vit_b16_c2_ep5_batch4_2ctx
+CFG=vit_b16_c2_ep5_batch4_1ctx
 SHOTS=16
 LOADEP=5
 SUB=new
@@ -24,7 +24,7 @@ for dataset in ${DATASET[@]}
 do
     for seed in ${SEED[@]}
     do
-        COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_3_1/${CFG}/seed${seed}
+        COMMON_DIR=${dataset}/shots_${SHOTS}/${TRAINER}_3_1/${CFG}_k10/seed${seed}
         MODEL_DIR=~/data1/zmm/output/base2new/train_base/${COMMON_DIR}
         DIR=~/data1/zmm/output/base2new/test_${SUB}/${COMMON_DIR}
         if [ -d "$DIR" ]; then
