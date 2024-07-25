@@ -332,7 +332,7 @@ def soft_matching(x: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[cal
     n, t1, c = x.shape
     # node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) # same shape as scores [batch, n_token, 1], descending by row
     node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) #[batch, t1, c]
-    sparse_idx = node_idx[:,1:4,0] # 取前三个
+    sparse_idx = node_idx[:,1:11,0] # 取前三个 修改成前10个
     sparse_metric = scores.gather(dim=-1, index=sparse_idx) #[batch, k]
     sparse_metric = sparse_metric.mean() # 取所有平均
     local_loss = 1-sparse_metric
