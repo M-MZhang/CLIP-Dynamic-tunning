@@ -313,6 +313,15 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
                     x = torch.cat([prefix, textual_context, suffix], dim=0)
                     # Once done, update the counter, so that the next time, it does not use same learnable tokens
                     counter += 1
+                else:
+                    if not (counter > len(compound_prompts_deeper) - 1):
+                        visiual_context = compound_prompts_deeper[counter]
+                        visiual_context = visiual_context.expand(x.shape[1], -1, -1).permute(1, 0, 2).half()
+                        if not self.first_layer:
+                            prefix = x[0:x.shape[0]-self.compound_prompt_nctx, :, :]
+                            x = torch.cat([prefix, visiual_context], dim=0)
+                        else:
+                            x = torch.cat([x, visiual_context],dim=0)
         x = x + self.attention(self.ln_1(x))
         if len(compound_prompts_deeper) > 0 and (not self.text_layer):
             if not (counter > len(compound_prompts_deeper) - 1):
