@@ -326,29 +326,49 @@ class ResidualAttentionBlock_MaPLe(nn.Module):
         if len(compound_prompts_deeper) > 0 and (not self.text_layer):
             if not (counter > len(compound_prompts_deeper) - 1):
                 # prune or merge the tokens for vision branch
-                x, local_loss = soft_matching(x.permute(1, 0, 2), compound_prompts_deeper[counter], 0)
+                x, local_loss = self.soft_matching(x.permute(1, 0, 2), 0)
                 counter += 1
                 loss.append(local_loss)
         x = x + self.mlp(self.ln_2(x))
         return [x, compound_prompts_deeper, counter, loss]  # return again as a list, so that nn.seq can work
 
-def soft_matching(x: torch.Tensor, dispacher:torch.Tensor,  r: int) -> Tuple[callable, callable]:
-    metric = x / x.norm(dim=-1, keepdim=True)
-    selector = dispacher / dispacher.norm(dim=-1, keepdim=True) #
-    scores = metric @ selector.T.half() # [batch, n_token, 1]
-    scores[..., 0, :] = math.inf 
-    scores = scores.mean(-1) #[batch, n_token]
-    n, t1, c = x.shape
-    # node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) # same shape as scores [batch, n_token, 1], descending by row
-    node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) #[batch, t1, c]
-    sparse_idx = node_idx[:,1:11,0] # 取前三个 修改成前10个
-    sparse_metric = scores.gather(dim=-1, index=sparse_idx) #[batch, k]
-    sparse_metric = sparse_metric.mean() # 取所有平均
-    local_loss = 1-sparse_metric
-    unp_idx = node_idx[..., :scores.shape[1]-r, :]
-    new_metric = x.gather(dim=-2, index= unp_idx) # [batch, x.shape[1]-r, n_channel]
+    def soft_matching(self, x: torch.Tensor, r: int) -> Tuple[callable, callable]:
+    # metric = x / x.norm(dim=-1, keepdim=True)
+    # selector = dispacher / dispacher.norm(dim=-1, keepdim=True) #
+    # scores = metric @ selector.T.half() # [batch, n_token, 1]
+    # scores[..., 0, :] = math.inf 
+    # scores = scores.mean(-1) #[batch, n_token]
+    # n, t1, c = x.shape
+    # # node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) # same shape as scores [batch, n_token, 1], descending by row
+    # node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) #[batch, t1, c]
+    # sparse_idx = node_idx[:,1:11,0] # 取前三个 修改成前10个
+    # sparse_metric = scores.gather(dim=-1, index=sparse_idx) #[batch, k]
+    # sparse_metric = sparse_metric.mean() # 取所有平均
+    # local_loss = 1-sparse_metric
+    # unp_idx = node_idx[..., :scores.shape[1]-r, :]
+    # new_metric = x.gather(dim=-2, index= unp_idx) # [batch, x.shape[1]-r, n_channel]
 
-    return new_metric.permute(1, 0, 2), local_loss
+    # return new_metric.permute(1, 0, 2), local_loss
+        new_x = x[:, 0:x.shape[1]-1, :] #[batch, 197, 798]
+        dispacher = x[:, x.shape[1]-1, :].unsqueeze(1) #[batch, 1, 798]
+        metric = new_x / new_x.norm(dim=-1, keepdim=True)
+        selector = dispacher / dispacher.norm(dim=-1, keepdim=True) #
+        # scores = metric @ selector.T.half() # [batch, n_token, 1]
+        scores = torch.matmul(metric, selector.transpose(-1, -2))
+        scores[..., 0, :] = math.inf 
+        scores = scores.mean(-1) #[batch, n_token]
+        n, t1, c = new_x.shape
+        # node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) # same shape as scores [batch, n_token, 1], descending by row
+        node_idx = scores.argsort(dim=-1, descending=True)[..., None].expand(n, t1, c) #[batch, t1, c]
+        sparse_idx = node_idx[:,1:11,0] # 取前三个 修改成前10个
+        sparse_metric = scores.gather(dim=-1, index=sparse_idx) #[batch, k]
+        sparse_metric = sparse_metric.mean() # 取所有平均
+        local_loss = 1-sparse_metric
+        unp_idx = node_idx[..., :scores.shape[1]-r, :]
+        new_metric = x.gather(dim=-2, index= unp_idx) # [batch, x.shape[1]-r, n_channel]
+        new_metric = torch.cat([new_x, dispacher], dim=1)
+
+        return new_metric.permute(1, 0, 2), local_loss
 
 class Transformer(nn.Module):
     def __init__(self, width: int, layers: int, heads: int, attn_mask: torch.Tensor = None, prompts_needed=0,

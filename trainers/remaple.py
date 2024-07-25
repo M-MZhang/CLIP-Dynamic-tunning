@@ -214,7 +214,7 @@ class CustomCLIP(nn.Module):
         logits = logit_scale * image_features @ text_features.t()
 
         if self.prompt_learner.training:
-            return F.cross_entropy(logits, label)+ sum(local_loss)/len(local_loss)
+            return F.cross_entropy(logits, label) + sum(local_loss)/len(local_loss)
 
         return logits
 
